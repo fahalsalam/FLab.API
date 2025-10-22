@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.10.34928.147
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Fluxion_Lab", "Fluxion_Lab\Fluxion_Lab.csproj", "{0DFD7A55-8826-4CC4-A847-71FE37B9EAAF}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{0DFD7A55-8826-4CC4-A847-71FE37B9EAAF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0DFD7A55-8826-4CC4-A847-71FE37B9EAAF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0DFD7A55-8826-4CC4-A847-71FE37B9EAAF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0DFD7A55-8826-4CC4-A847-71FE37B9EAAF}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {C7018B2F-3290-4357-A46A-736D885D3C5C}
+	EndGlobalSection
+EndGlobal
