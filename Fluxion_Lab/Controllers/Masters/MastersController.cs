@@ -2526,6 +2526,7 @@ namespace Fluxion_Lab.Controllers.Masters
 
                 var parameters = new DynamicParameters();
                 parameters.Add("@Flag", 124);
+                parameters.Add("@ClientID", tokenClaims.ClientId);
                 parameters.Add("@MachineName", machineName);
                 parameters.Add("@HostIP", hostIP);
                 parameters.Add("@HostPort", hostPort);
@@ -2727,7 +2728,7 @@ namespace Fluxion_Lab.Controllers.Masters
 
         #region OutSource Test Mapping - Save (Alias endpoint)
         [HttpPost("saveOutSourceTests")]
-        public IActionResult SaveOutSourceTests([FromHeader] long LabID, [FromBody] List<OutSourceTestMappingDto> mappings)
+        public IActionResult SaveOutSourceTests([FromHeader] long LabID, [FromHeader] int Sequence, [FromHeader] long InvoiceNo, [FromHeader] int EditNo, [FromBody] List<OutSourceTestDto> mappings)
         {
             try
             {
@@ -2737,16 +2738,20 @@ namespace Fluxion_Lab.Controllers.Masters
                 var tokenClaims = Fluxion_Handler.GetJWTTokenClaims(token, _key._jwtKey, true);
 
                 var parameters = new DynamicParameters();
-                parameters.Add("@Flag", 131);
+                parameters.Add("@Flag", 115);
                 parameters.Add("@ClientID", tokenClaims.ClientId);
-                parameters.Add("@ID", LabID);
+                parameters.Add("@LabID", LabID);
+                parameters.Add("@Sequence", Sequence);
+                parameters.Add("@InvoiceNo", InvoiceNo);
+                parameters.Add("@EditNo", EditNo);
                 parameters.Add("@JsonData", JsonConvert.SerializeObject(mappings));
+                parameters.Add("@UserID", tokenClaims.UserId);
 
-                var data = _dbcontext.Query("SP_Masters", parameters, commandType: CommandType.StoredProcedure);
+                _dbcontext.Execute("SP_TestEntry", parameters, commandType: CommandType.StoredProcedure);
 
                 _response.isSucess = true;
                 _response.message = "Success";
-                _response.data = data;
+                _response.data = null;
 
                 return Ok(_response);
             }
@@ -2759,9 +2764,9 @@ namespace Fluxion_Lab.Controllers.Masters
         }
         #endregion
 
-        #region OutSource Test Mapping GET
-        [HttpGet("getOutSourceTestMapping")]
-        public IActionResult GetOutSourceTestMapping([FromHeader] long LabID)
+        #region OutSource Test Summary by Invoice GET
+        [HttpGet("getOutSourceTestsByInvoice")]
+        public IActionResult GetOutSourceTestsByInvoice([FromHeader] int Sequence, [FromHeader] long InvoiceNo, [FromHeader] int EditNo)
         {
             try
             {
@@ -2771,11 +2776,13 @@ namespace Fluxion_Lab.Controllers.Masters
                 var tokenClaims = Fluxion_Handler.GetJWTTokenClaims(token, _key._jwtKey, true);
 
                 var parameters = new DynamicParameters();
-                parameters.Add("@Flag", 132);
+                parameters.Add("@Flag", 116);
                 parameters.Add("@ClientID", tokenClaims.ClientId);
-                parameters.Add("@ID", LabID);
+                parameters.Add("@Sequence", Sequence);
+                parameters.Add("@InvoiceNo", InvoiceNo);
+                parameters.Add("@EditNo", EditNo);
 
-                var data = _dbcontext.Query("SP_Masters", parameters, commandType: CommandType.StoredProcedure);
+                var data = _dbcontext.Query("SP_TestEntry", parameters, commandType: CommandType.StoredProcedure);
 
                 _response.isSucess = true;
                 _response.message = "Success";
@@ -2792,74 +2799,6 @@ namespace Fluxion_Lab.Controllers.Masters
         }
         #endregion
 
-        /**************** Expense Category Master ******************/
-
-        #region POST Expense Category
-        [HttpPost("postExpenseCategory")]
-        public IActionResult PostExpenseCategory([FromHeader] int? CategoryId, [FromHeader] string CategoryName, [FromHeader] bool? IsActive)
-        {
-            try
-            {
-                string token = Request.Headers["Authorization"];
-                token = token.Substring(7);
-
-                var tokenClaims = Fluxion_Handler.GetJWTTokenClaims(token, _key._jwtKey, true);
-
-                var parameters = new DynamicParameters();
-                parameters.Add("@Flag", 133);
-                parameters.Add("@ClientID", tokenClaims.ClientId);
-                parameters.Add("@ID", CategoryId);
-                parameters.Add("@Name", CategoryName);
-                parameters.Add("@IsDefault", IsActive);
-
-                var data = _dbcontext.Query("SP_Masters", parameters, commandType: CommandType.StoredProcedure);
-
-                _response.isSucess = true;
-                _response.message = "Success";
-                _response.data = data;
-
-                return Ok(_response);
-            }
-            catch (Exception ex)
-            {
-                _response.isSucess = false;
-                _response.message = ex.Message;
-                return StatusCode(500, _response);
-            }
-        }
-        #endregion
-
-        #region GET Expense Categories
-        [HttpGet("getExpenseCategories")]
-        public IActionResult GetExpenseCategories()
-        {
-            try
-            {
-                string token = Request.Headers["Authorization"];
-                token = token.Substring(7);
-
-                var tokenClaims = Fluxion_Handler.GetJWTTokenClaims(token, _key._jwtKey, true);
-
-                var parameters = new DynamicParameters();
-                parameters.Add("@Flag", 134);
-                parameters.Add("@ClientID", tokenClaims.ClientId);
-
-                var data = _dbcontext.Query("SP_Masters", parameters, commandType: CommandType.StoredProcedure);
-
-                _response.isSucess = true;
-                _response.message = "Success";
-                _response.data = data;
-
-                return Ok(_response);
-            }
-            catch (Exception ex)
-            {
-                _response.isSucess = false;
-                _response.message = ex.Message;
-                return StatusCode(500, _response);
-            }
-        }
-        #endregion
     }
 
 }
