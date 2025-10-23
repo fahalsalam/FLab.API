@@ -30,7 +30,6 @@ using static Fluxion_Lab.Models.Masters.DoctorMaster.DoctorMasterWithSchedule;
 using static Fluxion_Lab.Models.Transactions.TestEntries.TestEntries;
 using Fluxion_Lab.Models.Masters.DoctorMaster;
 using static Fluxion_Lab.Models.Masters.Machine_Analyzer.MachineAnalyzer;
- 
 
 namespace Fluxion_Lab.Controllers.Masters
 {
@@ -581,7 +580,7 @@ namespace Fluxion_Lab.Controllers.Masters
                     MachineName = hd.MachineName,
                     Show_In_Report = hd.Show_In_Report,
                     Discount = hd.Discount,
-                    AltTestName = hd.AltTestName, 
+                    AltTestName = hd.AltTestName,
                     AvgDays = hd.AvgDays,
                     AvgHour = hd.AvgHour,
                     AvgMinute = hd.AvgMinute,
@@ -1296,7 +1295,7 @@ namespace Fluxion_Lab.Controllers.Masters
 
         #region Lab Master POST
         [HttpPost("postLabMaster")]
-        public IActionResult PostLabMaster([FromHeader] int? ID,[FromHeader] string? Name, [FromHeader] string? Mobile, [FromHeader] string? Place, [FromHeader] bool? isOutSource)
+        public IActionResult PostLabMaster([FromHeader] int? ID, [FromHeader] string? Name, [FromHeader] string? Mobile, [FromHeader] string? Place, [FromHeader] bool? isOutSource)
         {
             try
             {
@@ -1308,11 +1307,11 @@ namespace Fluxion_Lab.Controllers.Masters
                 var parameters = new DynamicParameters();
                 parameters.Add("@Flag", 102);
                 parameters.Add("@ClientID", tokenClaims.ClientId);
-                parameters.Add("@ID", ID); 
+                parameters.Add("@ID", ID);
                 parameters.Add("@Name", Name);
                 parameters.Add("@Place", Place);
                 parameters.Add("@MobileNo", Mobile);
-                parameters.Add("@IsOutSource", isOutSource); 
+                parameters.Add("@IsOutSource", isOutSource);
 
                 var data = _dbcontext.Query("SP_Masters", parameters, commandType: CommandType.StoredProcedure);
 
@@ -1412,13 +1411,13 @@ namespace Fluxion_Lab.Controllers.Masters
         {
             public string HeaderName { get; set; }
             public List<ModulePermissions> Modules { get; set; }
-        } 
-   
+        }
+
         /**************** Place Master ******************/
 
         #region Post Place Master
         [HttpPost("postPlaceMaster")]
-        public IActionResult PostPlaceMaster([FromHeader] int? ID,[FromHeader] string? Name)
+        public IActionResult PostPlaceMaster([FromHeader] int? ID, [FromHeader] string? Name)
         {
             try
             {
@@ -1430,7 +1429,7 @@ namespace Fluxion_Lab.Controllers.Masters
                 var parameters = new DynamicParameters();
                 parameters.Add("@Flag", 104);
                 parameters.Add("@ClientID", tokenClaims.ClientId);
-                parameters.Add("@ID", ID); 
+                parameters.Add("@ID", ID);
                 parameters.Add("@Name", Name);
                 parameters.Add("@UserID", tokenClaims.UserId);
 
@@ -1492,7 +1491,7 @@ namespace Fluxion_Lab.Controllers.Masters
 
         #region Privilege Card POST
         [HttpPost("postPrivilegeCard")]
-        public IActionResult postPrivilegeCard([FromHeader] string cardName, [FromHeader] string description, [FromHeader] decimal amount, 
+        public IActionResult postPrivilegeCard([FromHeader] string cardName, [FromHeader] string description, [FromHeader] decimal amount,
             [FromHeader] decimal? discPerc)
         {
             try
@@ -1767,10 +1766,10 @@ namespace Fluxion_Lab.Controllers.Masters
                 parameters.Add("@Flag", 106);
                 parameters.Add("@ClientID", tokenClaims.ClientId);
                 parameters.Add("@HeaderImageUrl", _img.headerImage);
-                parameters.Add("@HeaderCloudImageUrl", _img.headerICloudmage); 
+                parameters.Add("@HeaderCloudImageUrl", _img.headerICloudmage);
                 parameters.Add("@FooterImageUrl", _img.footerImage);
-                parameters.Add("@FooterCloudImageUrl", _img.footerCloudImage); 
-                parameters.Add("@SignatureImageUrl", _img.signature);   
+                parameters.Add("@FooterCloudImageUrl", _img.footerCloudImage);
+                parameters.Add("@SignatureImageUrl", _img.signature);
                 parameters.Add("@letterheading_url", _img.letterheading_url);
                 parameters.Add("@BackupPath", _img.backupPath);
 
@@ -1818,7 +1817,7 @@ namespace Fluxion_Lab.Controllers.Masters
                 parameters.Add("@OpBillPrinter", _dv.opBillPrinter);
                 parameters.Add("@OpBillCardPrinter", _dv.opBillCardPrinter);
                 parameters.Add("@OpRecieptPrinter", _dv.opRecieptPrinter);
-                parameters.Add("@outsourceRecieptPrinter", _dv.outsourceRecieptPrinter); 
+                parameters.Add("@outsourceRecieptPrinter", _dv.outsourceRecieptPrinter);
 
 
                 var data = _dbcontext.Query("SP_Masters", parameters, commandType: CommandType.StoredProcedure);
@@ -1994,7 +1993,7 @@ namespace Fluxion_Lab.Controllers.Masters
                 var parameters = new DynamicParameters();
                 parameters.Add("@Flag", 118);
                 parameters.Add("@ClientID", tokenClaims.ClientId);
-                parameters.Add("@UserID", UserID); 
+                parameters.Add("@UserID", UserID);
                 var data = _dbcontext.Query("SP_Masters", parameters, commandType: CommandType.StoredProcedure);
 
                 _response.isSucess = true;
@@ -2012,8 +2011,8 @@ namespace Fluxion_Lab.Controllers.Masters
                 return StatusCode(500, _response);
             }
         }
-        
-        #endregion 
+
+        #endregion
 
         /********** General Settings **************/
 
@@ -2103,7 +2102,7 @@ namespace Fluxion_Lab.Controllers.Masters
 
                 int? _flag = 101;
 
-                if(departmentID ==-1)
+                if (departmentID == -1)
                 {
                     _flag = 115;
                 }
@@ -2115,8 +2114,8 @@ namespace Fluxion_Lab.Controllers.Masters
                 var parameters = new DynamicParameters();
                 parameters.Add("@Flag", _flag);
                 parameters.Add("@ClientID", tokenClaims.ClientId);
-                parameters.Add("@DepartmentID", departmentID); 
-                parameters.Add("@DepartmentName", departmentName);  
+                parameters.Add("@DepartmentID", departmentID);
+                parameters.Add("@DepartmentName", departmentName);
                 var data = _dbcontext.Query("SP_Masters", parameters, commandType: CommandType.StoredProcedure);
 
                 _response.isSucess = true;
@@ -2223,7 +2222,7 @@ namespace Fluxion_Lab.Controllers.Masters
                 var parameters = new DynamicParameters();
                 parameters.Add("@Flag", 101);
                 parameters.Add("@ClientID", tokenClaims.ClientId);
-                parameters.Add("@UserID", userID); 
+                parameters.Add("@UserID", userID);
                 var data = _dbcontext.Query("SP_UserAuthPermissions", parameters, commandType: CommandType.StoredProcedure);
 
                 var groupedPermissions = data
@@ -2236,7 +2235,7 @@ namespace Fluxion_Lab.Controllers.Masters
                          .Select(moduleGroup => new ModulePermissions
                          {
                              ModuleID = moduleGroup.Select(p => (int)p.ModuleID).FirstOrDefault(),
-                             ModuleName = moduleGroup.Key, 
+                             ModuleName = moduleGroup.Key,
                              Permissions = moduleGroup
                                 .GroupBy(p => (string)p.PermissionName) // Cast key to string
                                 .ToDictionary(
@@ -2244,7 +2243,7 @@ namespace Fluxion_Lab.Controllers.Masters
                                     g => g.Any(p => (bool)p.IsGranted) // Cast value to bool
                                 )
                          }).ToList()
-                    }).ToList();
+                 }).ToList();
 
                 _response.isSucess = true;
                 _response.message = "Success";
@@ -2422,7 +2421,7 @@ namespace Fluxion_Lab.Controllers.Masters
                 parameters.Add("@TestName", TestName);
                 parameters.Add("@Value", Values);
                 parameters.Add("@Section", Section);
-                parameters.Add("@IsDefault", IsDefault);   
+                parameters.Add("@IsDefault", IsDefault);
 
                 var data = _dbcontext.Query("SP_Masters", parameters, commandType: CommandType.StoredProcedure);
 
@@ -2458,7 +2457,7 @@ namespace Fluxion_Lab.Controllers.Masters
                 parameters.Add("@Flag", 121);
                 parameters.Add("@ClientID", tokenClaims.ClientId);
                 parameters.Add("@TestID", TestID);
-                parameters.Add("@ID", ID); 
+                parameters.Add("@ID", ID);
 
                 var data = _dbcontext.Query("SP_Masters", parameters, commandType: CommandType.StoredProcedure);
 
@@ -2526,10 +2525,10 @@ namespace Fluxion_Lab.Controllers.Masters
                 var tokenClaims = Fluxion_Handler.GetJWTTokenClaims(token, _key._jwtKey, true);
 
                 var parameters = new DynamicParameters();
-                parameters.Add("@Flag", 124); 
+                parameters.Add("@Flag", 124);
                 parameters.Add("@MachineName", machineName);
                 parameters.Add("@HostIP", hostIP);
-                parameters.Add("@HostPort", hostPort); 
+                parameters.Add("@HostPort", hostPort);
 
                 var data = _dbcontext.Query("SP_Masters", parameters, commandType: CommandType.StoredProcedure);
 
@@ -2564,7 +2563,7 @@ namespace Fluxion_Lab.Controllers.Masters
                 var parameters = new DynamicParameters();
                 parameters.Add("@Flag", 125);
                 parameters.Add("@MachineName", machineName);
-                parameters.Add("@HostIP", hostIP); 
+                parameters.Add("@HostIP", hostIP);
 
                 var data = _dbcontext.Query("SP_Masters", parameters, commandType: CommandType.StoredProcedure);
 
@@ -2630,14 +2629,14 @@ namespace Fluxion_Lab.Controllers.Masters
                 var analyzerService = new AnalyzerService(_dbcontext);
 
 
-                var parameters = new DynamicParameters(); 
-                parameters.Add("@JsonData", JsonConvert.SerializeObject(_dt));  
-                
+                var parameters = new DynamicParameters();
+                parameters.Add("@JsonData", JsonConvert.SerializeObject(_dt));
+
                 var data = _dbcontext.Query<MachineConfigDTO>("SP_MachineConfig", parameters, commandType: CommandType.StoredProcedure);
                 var config = data.FirstOrDefault();
 
-                var result = await analyzerService.PostAnalyzerData(config.ClientID, config.Sequence, 
-                    config.InvoiceNo, config.EditNo, JsonConvert.SerializeObject(_dt),false); 
+                var result = await analyzerService.PostAnalyzerData(config.ClientID, config.Sequence,
+                    config.InvoiceNo, config.EditNo, JsonConvert.SerializeObject(_dt), false);
 
                 _response.isSucess = true;
                 _response.message = "Success";
@@ -2656,16 +2655,16 @@ namespace Fluxion_Lab.Controllers.Masters
         }
         #endregion
 
-         /*********** Ficial Year *************/
-        
+        /*********** Ficial Year *************/
+
         #region POST Ficial Year
         [HttpPost("postficialYear")]
         public async Task<IActionResult> postficialYear()
         {
             try
-            { 
+            {
                 var data = _dbcontext.Query("SP_FiscalYears", commandType: CommandType.StoredProcedure);
-                
+
                 _response.isSucess = true;
                 _response.message = "Success";
                 _response.data = data;
@@ -2689,12 +2688,46 @@ namespace Fluxion_Lab.Controllers.Masters
             public int ClientID { get; set; }
             public int Sequence { get; set; }
             public long InvoiceNo { get; set; }
-            public int EditNo { get; set; } 
+            public int EditNo { get; set; }
         }
 
         #region OutSource Test Mapping Bulk Insert
         [HttpPost("postOutSourceTestMapping")]
         public IActionResult PostOutSourceTestMapping([FromHeader] long LabID, [FromBody] List<OutSourceTestMappingDto> mappings)
+        {
+            try
+            {
+                string token = Request.Headers["Authorization"];
+                token = token.Substring(7);
+
+                var tokenClaims = Fluxion_Handler.GetJWTTokenClaims(token, _key._jwtKey, true);
+
+                var parameters = new DynamicParameters();
+                parameters.Add("@Flag", 131);
+                parameters.Add("@ClientID", tokenClaims.ClientId);
+                parameters.Add("@ID", LabID);
+                parameters.Add("@JsonData", JsonConvert.SerializeObject(mappings));
+
+                var data = _dbcontext.Query("SP_Masters", parameters, commandType: CommandType.StoredProcedure);
+
+                _response.isSucess = true;
+                _response.message = "Success";
+                _response.data = data;
+
+                return Ok(_response);
+            }
+            catch (Exception ex)
+            {
+                _response.isSucess = false;
+                _response.message = ex.Message;
+                return StatusCode(500, _response);
+            }
+        }
+        #endregion
+
+        #region OutSource Test Mapping - Save (Alias endpoint)
+        [HttpPost("saveOutSourceTests")]
+        public IActionResult SaveOutSourceTests([FromHeader] long LabID, [FromBody] List<OutSourceTestMappingDto> mappings)
         {
             try
             {

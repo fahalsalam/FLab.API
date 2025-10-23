@@ -541,7 +541,7 @@ namespace Fluxion_Lab.Controllers
 
         [NonAction]
         [AllowAnonymous]
-        [HttpPost("uploadExe")]
+        [HttpPost("uploadExe")] 
         public async Task<IActionResult> UploadExe([FromForm] IFormFile exeFile)
         {
             if (exeFile == null || exeFile.Length == 0)
