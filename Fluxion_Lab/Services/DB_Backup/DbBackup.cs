@@ -3,27 +3,29 @@ using System.Data.SqlClient;
 using System.Diagnostics;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
-using Microsoft.Extensions.Configuration; // Add this for config
+using Microsoft.Extensions.Configuration;
+using System.Text;
 
 namespace Fluxion_Lab.Services.DB_Backup
 {
     public class DbBackup : IHostedService
     {
         private readonly ILogger<DbBackup> _logger;
-        private readonly IConfiguration _configuration; // Add this for DI
+        private readonly IConfiguration _configuration;
 
         // Hardcoded configuration values
-        private readonly string _connectionString; // Database connection string
-        private readonly string _encryptionPassword = "FS@987"; // Encryption password
-        private readonly string _sevenZipPath = @"C:\Program Files\7-Zip\7z.exe"; // Path to 7-Zip executable
+        private readonly string _connectionString;
+        private readonly string _encryptionPassword = "FS@987";
+        private readonly string _sevenZipPath = @"C:\Program Files\7-Zip\7z.exe";
 
         // Azure Blob Storage configuration
-        private readonly string _azureStorageConnectionString; // Azure Storage connection string
-        private readonly string _containerName = "database-backups"; // Container name
-        private readonly string _clientId; // Client ID for directory structure
+        private readonly string _azureStorageConnectionString;
+        private readonly string _containerName = "database-backups";
+        private readonly string _clientId;
 
         private Timer _timer;
         private BlobServiceClient _blobServiceClient;
+        private string _backupLogFilePath;
 
         public DbBackup(ILogger<DbBackup> logger, IConfiguration configuration)
         {
@@ -119,48 +121,161 @@ namespace Fluxion_Lab.Services.DB_Backup
             }
         }
 
+        private void WriteToLogFile(string message, string logLevel = "INFO")
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(_backupLogFilePath))
+                    return;
+
+                string logEntry = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [{logLevel}] {message}";
+                File.AppendAllText(_backupLogFilePath, logEntry + Environment.NewLine);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Failed to write to log file: {ex.Message}");
+            }
+        }
+
+        private void InitializeLogFile(string backupDirectory)
+        {
+            try
+            {
+                _backupLogFilePath = Path.Combine(backupDirectory, "BackupLog.txt");
+
+                // Create or append to log file
+                if (!File.Exists(_backupLogFilePath))
+                {
+                    File.Create(_backupLogFilePath).Dispose();
+                    WriteToLogFile("=== Backup Log File Created ===", "INFO");
+                }
+
+                WriteToLogFile("==========================================", "INFO");
+                WriteToLogFile("Backup Process Started", "INFO");
+                WriteToLogFile("==========================================", "INFO");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Failed to initialize log file: {ex.Message}");
+            }
+        }
+
         private async Task PerformBackupAsync(object state)
         {
             string localBackupFilePath = null;
             string localEncryptedFilePath = null;
+            DateTime startTime = DateTime.Now;
 
             try
             {
                 _logger.LogInformation("Starting backup process...");
 
+                // Get backup path first to initialize log file
+                string backupFolder = await GetBackupPathAsync();
+                InitializeLogFile(backupFolder);
+
+                WriteToLogFile($"Backup process initiated at {startTime:yyyy-MM-dd HH:mm:ss}", "INFO");
+                WriteToLogFile($"Backup directory: {backupFolder}", "INFO");
+
                 // Perform the backup and encryption locally
+                WriteToLogFile("Creating database backup...", "INFO");
                 localBackupFilePath = await PerformDatabaseBackupAsync();
+                WriteToLogFile($"Database backup created successfully: {Path.GetFileName(localBackupFilePath)}", "SUCCESS");
+
+                WriteToLogFile("Encrypting backup file...", "INFO");
                 localEncryptedFilePath = EncryptBackup(localBackupFilePath);
+                WriteToLogFile($"Backup encrypted successfully: {Path.GetFileName(localEncryptedFilePath)}", "SUCCESS");
+
+                // Get file sizes for logging
+                long backupSize = new FileInfo(localBackupFilePath).Length;
+                long encryptedSize = new FileInfo(localEncryptedFilePath).Length;
+                WriteToLogFile($"Backup file size: {FormatFileSize(backupSize)}", "INFO");
+                WriteToLogFile($"Encrypted file size: {FormatFileSize(encryptedSize)}", "INFO");
 
                 // Delete the unprotected .bak file immediately after encryption
                 if (!string.IsNullOrEmpty(localBackupFilePath) && File.Exists(localBackupFilePath))
                 {
                     File.Delete(localBackupFilePath);
                     _logger.LogInformation($"Unprotected backup file deleted after encryption: {localBackupFilePath}");
+                    WriteToLogFile($"Unprotected .bak file deleted: {Path.GetFileName(localBackupFilePath)}", "INFO");
                 }
 
                 // Delete all previous .7z files except the latest one
                 string backupDirectory = Path.GetDirectoryName(localEncryptedFilePath);
                 var all7zFiles = Directory.GetFiles(backupDirectory, "*.7z");
                 var latest7z = all7zFiles.OrderByDescending(f => File.GetCreationTimeUtc(f)).FirstOrDefault();
+
+                int deletedCount = 0;
                 foreach (var file in all7zFiles)
                 {
                     if (!string.Equals(file, latest7z, StringComparison.OrdinalIgnoreCase))
                     {
                         File.Delete(file);
                         _logger.LogInformation($"Old encrypted backup file deleted: {file}");
+                        WriteToLogFile($"Old encrypted backup deleted: {Path.GetFileName(file)}", "INFO");
+                        deletedCount++;
                     }
+                }
+
+                if (deletedCount > 0)
+                {
+                    WriteToLogFile($"Total old backups cleaned up: {deletedCount}", "INFO");
                 }
 
                 // Upload to Azure Blob Storage
                 //await UploadToAzureBlobAsync(localEncryptedFilePath);
 
+                DateTime endTime = DateTime.Now;
+                TimeSpan duration = endTime - startTime;
+
                 _logger.LogInformation($"Backup process completed successfully. File uploaded to Azure Blob Storage.");
+                WriteToLogFile("==========================================", "SUCCESS");
+                WriteToLogFile($"BACKUP COMPLETED SUCCESSFULLY", "SUCCESS");
+                WriteToLogFile($"Duration: {duration.TotalMinutes:F2} minutes ({duration.TotalSeconds:F0} seconds)", "INFO");
+                WriteToLogFile($"End time: {endTime:yyyy-MM-dd HH:mm:ss}", "INFO");
+                WriteToLogFile($"Latest backup file: {Path.GetFileName(localEncryptedFilePath)}", "INFO");
+                WriteToLogFile("==========================================", "SUCCESS");
+                WriteToLogFile("", "INFO"); // Empty line for readability
             }
             catch (Exception ex)
             {
+                DateTime endTime = DateTime.Now;
+                TimeSpan duration = endTime - startTime;
+
                 _logger.LogError($"Error during backup process: {ex.Message}");
+
+                WriteToLogFile("==========================================", "ERROR");
+                WriteToLogFile($"BACKUP FAILED", "ERROR");
+                WriteToLogFile($"Error: {ex.Message}", "ERROR");
+                WriteToLogFile($"Stack Trace: {ex.StackTrace}", "ERROR");
+                WriteToLogFile($"Duration before failure: {duration.TotalMinutes:F2} minutes", "ERROR");
+                WriteToLogFile($"Failed at: {endTime:yyyy-MM-dd HH:mm:ss}", "ERROR");
+
+                if (!string.IsNullOrEmpty(localBackupFilePath))
+                {
+                    WriteToLogFile($"Backup file (if created): {Path.GetFileName(localBackupFilePath)}", "ERROR");
+                }
+                if (!string.IsNullOrEmpty(localEncryptedFilePath))
+                {
+                    WriteToLogFile($"Encrypted file (if created): {Path.GetFileName(localEncryptedFilePath)}", "ERROR");
+                }
+
+                WriteToLogFile("==========================================", "ERROR");
+                WriteToLogFile("", "ERROR"); // Empty line for readability
             }
+        }
+
+        private string FormatFileSize(long bytes)
+        {
+            string[] sizes = { "B", "KB", "MB", "GB", "TB" };
+            double len = bytes;
+            int order = 0;
+            while (len >= 1024 && order < sizes.Length - 1)
+            {
+                order++;
+                len = len / 1024;
+            }
+            return $"{len:0.##} {sizes[order]}";
         }
 
         private async Task<string> PerformDatabaseBackupAsync()
@@ -173,6 +288,7 @@ namespace Fluxion_Lab.Services.DB_Backup
             if (!Directory.Exists(backupFolder))
             {
                 Directory.CreateDirectory(backupFolder);
+                WriteToLogFile($"Backup directory created: {backupFolder}", "INFO");
             }
 
             // Delete all existing .bak files before creating a new one
@@ -181,13 +297,16 @@ namespace Fluxion_Lab.Services.DB_Backup
             {
                 File.Delete(bakFile);
                 _logger.LogInformation($"Old backup file deleted before new backup: {bakFile}");
+                WriteToLogFile($"Old .bak file deleted: {Path.GetFileName(bakFile)}", "INFO");
             }
 
             // SQL backup command
             string sqlCommand = $@"
             BACKUP DATABASE [db_Fluxion]
             TO DISK  = N'{backupFilePath}'
-            WITH FORMAT, MEDIANAME = 'SQLServerBackups', NAME = 'Full Backup of db_Fluxion';";
+             WITH FORMAT, MEDIANAME = 'SQLServerBackups', NAME = 'Full Backup of db_Fluxion';";
+
+            WriteToLogFile("Executing SQL backup command...", "INFO");
 
             // Execute the SQL command
             await ExecuteSqlCommandAsync(sqlCommand);
@@ -203,6 +322,7 @@ namespace Fluxion_Lab.Services.DB_Backup
 
                 using (var command = new SqlCommand(commandText, connection))
                 {
+                    command.CommandTimeout = 300; // 5 minutes timeout for backup operations
                     await command.ExecuteNonQueryAsync();
                 }
             }
@@ -211,6 +331,8 @@ namespace Fluxion_Lab.Services.DB_Backup
         private string EncryptBackup(string filePath)
         {
             string encryptedFilePath = Path.ChangeExtension(filePath, ".7z");
+
+            WriteToLogFile($"Starting 7-Zip encryption for: {Path.GetFileName(filePath)}", "INFO");
 
             // 7-Zip command to encrypt the backup file
             string arguments = $"a -p{_encryptionPassword} \"{encryptedFilePath}\" \"{filePath}\"";
@@ -229,108 +351,36 @@ namespace Fluxion_Lab.Services.DB_Backup
             };
 
             process.Start();
+            string output = process.StandardOutput.ReadToEnd();
+            string error = process.StandardError.ReadToEnd();
             process.WaitForExit();
 
             if (process.ExitCode != 0)
             {
-                string errorMessage = process.StandardError.ReadToEnd();
+                string errorMessage = string.IsNullOrEmpty(error) ? "Unknown error" : error;
+                WriteToLogFile($"7-Zip encryption failed with exit code {process.ExitCode}", "ERROR");
+                WriteToLogFile($"7-Zip error: {errorMessage}", "ERROR");
                 throw new Exception($"7-Zip encryption failed: {errorMessage}");
+            }
+
+            if (!string.IsNullOrEmpty(output))
+            {
+                WriteToLogFile($"7-Zip output: {output.Substring(0, Math.Min(200, output.Length))}", "INFO");
             }
 
             return encryptedFilePath;
         }
 
-        //private async Task UploadToAzureBlobAsync(string localFilePath)
-        //{
-        //    try
-        //    {
-        //        var containerClient = _blobServiceClient.GetBlobContainerClient(_containerName);
-
-        //        // Create blob name with client ID directory structure
-        //        string fileName = Path.GetFileName(localFilePath);
-        //        string blobName = $"{_clientId}/{fileName}";
-
-        //        // Check if backup already exists and delete it (overwrite functionality)
-        //        await DeleteExistingBackupsAsync(containerClient, _clientId);
-
-        //        // Upload the new backup file
-        //        var blobClient = containerClient.GetBlobClient(blobName);
-
-        //        using (var fileStream = File.OpenRead(localFilePath))
-        //        {
-        //            await blobClient.UploadAsync(fileStream, overwrite: true);
-        //        }
-
-        //        _logger.LogInformation($"Backup uploaded successfully to Azure Blob Storage: {blobName}");
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        _logger.LogError($"Error uploading backup to Azure Blob Storage: {ex.Message}");
-        //        throw;
-        //    }
-        //}
-
-        private async Task DeleteExistingBackupsAsync(BlobContainerClient containerClient, string clientId)
-        {
-            try
-            {
-                // List all blobs in the client's directory
-                var blobs = containerClient.GetBlobsAsync(prefix: $"{clientId}/");
-
-                await foreach (var blob in blobs)
-                {
-                    // Delete existing backup files (they should all be .7z files)
-                    if (blob.Name.EndsWith(".7z", StringComparison.OrdinalIgnoreCase))
-                    {
-                        var blobClient = containerClient.GetBlobClient(blob.Name);
-                        await blobClient.DeleteIfExistsAsync();
-                        _logger.LogInformation($"Deleted existing backup: {blob.Name}");
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning($"Error deleting existing backups: {ex.Message}");
-                // Don't throw here as we still want to upload the new backup
-            }
-        }
-
-        private void DeleteUnprotectedBackup(string filePath)
-        {
-            try
-            {
-                // Get the directory from the file path
-                string backupDirectory = Path.GetDirectoryName(filePath);
-                if (!string.IsNullOrEmpty(backupDirectory) && Directory.Exists(backupDirectory))
-                {
-                    // Delete all .bak files in the backup directory
-                    var bakFiles = Directory.GetFiles(backupDirectory, "*.bak");
-                    foreach (var bakFile in bakFiles)
-                    {
-                        File.Delete(bakFile);
-                        _logger.LogInformation($"Unprotected backup file deleted: {bakFile}");
-                    }
-                }
-                else if (File.Exists(filePath))
-                {
-                    // Fallback: delete the specific file if directory logic fails
-                    File.Delete(filePath);
-                    _logger.LogInformation($"Unprotected backup file deleted: {filePath}");
-                }
-                else
-                {
-                    _logger.LogWarning($"Unprotected backup file or directory not found for deletion: {filePath}");
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError($"Error deleting unprotected backup files: {ex.Message}");
-            }
-        }
-
         public Task StopAsync(CancellationToken cancellationToken)
         {
             _logger.LogInformation("Backup service stopping...");
+
+            if (!string.IsNullOrEmpty(_backupLogFilePath))
+            {
+                WriteToLogFile("Backup service stopped", "INFO");
+                WriteToLogFile("==========================================", "INFO");
+                WriteToLogFile("", "INFO");
+            }
 
             _timer?.Change(Timeout.Infinite, 0);
             _timer?.Dispose();

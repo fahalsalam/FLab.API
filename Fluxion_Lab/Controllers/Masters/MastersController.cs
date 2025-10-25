@@ -2799,6 +2799,75 @@ namespace Fluxion_Lab.Controllers.Masters
         }
         #endregion
 
+        /**************** Expense Category Master ******************/
+
+        #region POST Expense Category
+        [HttpPost("postExpenseCategory")]
+        public IActionResult PostExpenseCategory([FromHeader] int? CategoryId, [FromHeader] string CategoryName, [FromHeader] bool? IsActive)
+        {
+            try
+            {
+                string token = Request.Headers["Authorization"];
+                token = token.Substring(7);
+
+                var tokenClaims = Fluxion_Handler.GetJWTTokenClaims(token, _key._jwtKey, true);
+
+                var parameters = new DynamicParameters();
+                parameters.Add("@Flag", 133);
+                parameters.Add("@ClientID", tokenClaims.ClientId);
+                parameters.Add("@ID", CategoryId);
+                parameters.Add("@Name", CategoryName);
+                parameters.Add("@IsDefault", IsActive);
+
+                var data = _dbcontext.Query("SP_Masters", parameters, commandType: CommandType.StoredProcedure);
+
+                _response.isSucess = true;
+                _response.message = "Success";
+                _response.data = data;
+
+                return Ok(_response);
+            }
+            catch (Exception ex)
+            {
+                _response.isSucess = false;
+                _response.message = ex.Message;
+                return StatusCode(500, _response);
+            }
+        }
+        #endregion
+
+        #region GET Expense Categories
+        [HttpGet("getExpenseCategories")]
+        public IActionResult GetExpenseCategories()
+        {
+            try
+            {
+                string token = Request.Headers["Authorization"];
+                token = token.Substring(7);
+
+                var tokenClaims = Fluxion_Handler.GetJWTTokenClaims(token, _key._jwtKey, true);
+
+                var parameters = new DynamicParameters();
+                parameters.Add("@Flag", 134);
+                parameters.Add("@ClientID", tokenClaims.ClientId);
+
+                var data = _dbcontext.Query("SP_Masters", parameters, commandType: CommandType.StoredProcedure);
+
+                _response.isSucess = true;
+                _response.message = "Success";
+                _response.data = data;
+
+                return Ok(_response);
+            }
+            catch (Exception ex)
+            {
+                _response.isSucess = false;
+                _response.message = ex.Message;
+                return StatusCode(500, _response);
+            }
+        }
+        #endregion
+
     }
 
 }

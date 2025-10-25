@@ -16,7 +16,7 @@ using System.Text;
 namespace Fluxion_Lab.Classes.DependencyInjection
 {
     public static class DependencyInjection
-    {  
+    {
         public static IServiceCollection AddJWT(this IServiceCollection services, IConfiguration _configuration)
         {
             var authkey = Fluxion_Handler.JWtKey();
@@ -36,12 +36,12 @@ namespace Fluxion_Lab.Classes.DependencyInjection
                 item.TokenValidationParameters = new Microsoft.IdentityModel.Tokens.TokenValidationParameters()
                 {
                     ValidateIssuerSigningKey = true,
-                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(Fluxion_Handler.DecryptString(authkey,Fluxion_Handler.APIString))),
+                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(Fluxion_Handler.DecryptString(authkey, Fluxion_Handler.APIString))),
                     ValidateIssuer = false,
                     ValidateAudience = false,
                     ClockSkew = TimeSpan.Zero,
                 };
-            }); 
+            });
 
             return services;
         }
@@ -104,52 +104,52 @@ namespace Fluxion_Lab.Classes.DependencyInjection
                 {
                     options.AddPolicy("AllowSpecificOrigin", policy =>
                     {
-                        policy.WithOrigins("http://localhost:3000")  
-                              .AllowAnyHeader()                   
-                              .AllowAnyMethod();                  
-                    }); 
+                        policy.WithOrigins("http://localhost:3000")
+                              .AllowAnyHeader()
+                              .AllowAnyMethod();
+                    });
                 });
-            }); 
+            });
             return services;
         }
 
         public static IServiceCollection AddBackgroundTaskDependencies(this IServiceCollection services, IConfiguration configuration)
         {
-            // Get connection string from configuration
-            string blobConnectionString = configuration["AzureStorage:ConnectionString"];
-            string containerName = configuration["AzureStorage:ContainerName"];
-            string queueName = configuration["AzureStorage:QueueName"];
+            //// Get connection string from configuration
+            //string blobConnectionString = configuration["AzureStorage:ConnectionString"];
+            //string containerName = configuration["AzureStorage:ContainerName"];
+            //string queueName = configuration["AzureStorage:QueueName"];
 
-         // Validate configuration
-            if (string.IsNullOrEmpty(blobConnectionString) || blobConnectionString == "YOUR_AZURE_STORAGE_CONNECTION_STRING_HERE")
-  {
-throw new InvalidOperationException("Azure Storage connection string is not configured. Please set AzureStorage:ConnectionString in appsettings.json or user secrets.");
-            }
+            //// Validate configuration
+            //if (string.IsNullOrEmpty(blobConnectionString) || blobConnectionString == "YOUR_AZURE_STORAGE_CONNECTION_STRING_HERE")
+            //{
+            //    throw new InvalidOperationException("Azure Storage connection string is not configured. Please set AzureStorage:ConnectionString in appsettings.json or user secrets.");
+            //}
 
-            // Initialize BlobServiceClient and get BlobContainerClient for the specified container
-      var blobServiceClient = new BlobServiceClient(blobConnectionString);
-   var blobContainerClient = blobServiceClient.GetBlobContainerClient(containerName);
-  services.AddSingleton(blobContainerClient);
+            //// Initialize BlobServiceClient and get BlobContainerClient for the specified container
+            //var blobServiceClient = new BlobServiceClient(blobConnectionString);
+            //var blobContainerClient = blobServiceClient.GetBlobContainerClient(containerName);
+            //services.AddSingleton(blobContainerClient);
 
-       // Initialize QueueClient with the connection string and queue name
-        var queueClient = new Azure.Storage.Queues.QueueClient(blobConnectionString, queueName);
-     services.AddSingleton(queueClient);
+            //// Initialize QueueClient with the connection string and queue name
+            //var queueClient = new Azure.Storage.Queues.QueueClient(blobConnectionString, queueName);
+            //services.AddSingleton(queueClient);
 
             // Register your services
             //services.AddTransient<IDataSyncService, DataSyncServiceImplementation>();
-          //services.AddHostedService<DataSyncBackgroundService>();
+            //services.AddHostedService<DataSyncBackgroundService>();
             services.AddHostedService<DbBackup>();
 
-         return services;
-  }
+            return services;
+        }
 
         public static IServiceCollection AddLocalServiceDependencies(this IServiceCollection services)
         {
             services.AddSingleton<JwtKey>();
             services.AddSingleton<APIResponse>();
-            services.AddScoped<TenantContext>(); 
+            services.AddScoped<TenantContext>();
             services.AddControllers();
-         
+
             return services;
         }
 

@@ -13,6 +13,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Diagnostics; // Added for system restart
 using Microsoft.Extensions.Configuration; // Added for IConfiguration
+using Fluxion_Lab.Classes.DBOperations;
 
 namespace Fluxion_Lab.Controllers
 {
@@ -25,7 +26,7 @@ namespace Fluxion_Lab.Controllers
         private readonly string _blobFolderName = "SQL_Scripts";
         private readonly string _staticLocalPath = @"D:\Fluxion_Projects\Fluxion_Flab\Fluxion_Lab\bin\Release\net8.0\publish";
         private readonly string _staticExePath = @"D:\Fluxion_Projects\Fluxion_Flab\Fluxion_Lab\bin\Release\net8.0\publish";
-
+        private readonly IConfiguration _configuration;
 
         // Define all event types to process
         private readonly List<string> _eventTypes = new List<string>
@@ -41,10 +42,301 @@ namespace Fluxion_Lab.Controllers
 
         public DDLScriptController(IConfiguration configuration)
         {
+            _configuration = configuration;
             _connectionString = "Server=localhost;Database=db_Fluxion_Dev;User Id=FS;Password=Fluxion@FS@987;Encrypt=True;TrustServerCertificate=True;";
             _blobConnectionString = configuration["AzureStorage:ConnectionString"];
             _blobContainerName = configuration["AzureStorage:ContainerName"];
         }
+
+        /************** TEST BACKUP ENDPOINT - FOR TESTING PURPOSES **************/
+        [AllowAnonymous]
+        [HttpPost("testBackup")]
+        public async Task<IActionResult> TestBackup()
+        {
+            string localBackupFilePath = null;
+            string localEncryptedFilePath = null;
+            string backupLogFilePath = null;
+            DateTime startTime = DateTime.Now;
+            List<string> logEntries = new List<string>();
+
+            try
+            {
+                // Get encrypted connection string
+                var encryptedConString = Environment.GetEnvironmentVariable("ConStr", EnvironmentVariableTarget.Machine);
+                if (string.IsNullOrEmpty(encryptedConString))
+                {
+                    return BadRequest(new { message = "The connection string environment variable 'ConStr' is not set." });
+                }
+
+                string connectionString = Fluxion_Handler.DecryptString(encryptedConString, Fluxion_Handler.APIString);
+
+                // Configuration
+                string encryptionPassword = "FS@987";
+                string sevenZipPath = @"C:\Program Files\7-Zip\7z.exe";
+
+                logEntries.Add($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [INFO] ==========================================");
+                logEntries.Add($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [INFO] TEST Backup Process Started");
+                logEntries.Add($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [INFO] ==========================================");
+
+                // Use hardcoded backup path for testing
+                string backupFolder = @"D:\DBBackup";
+                logEntries.Add($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [INFO] Using test backup directory: {backupFolder}");
+
+                // Initialize log file
+                backupLogFilePath = Path.Combine(backupFolder, "TestBackupLog.txt");
+
+                // Ensure directory exists
+                if (!Directory.Exists(backupFolder))
+                {
+                    Directory.CreateDirectory(backupFolder);
+                    logEntries.Add($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [INFO] Backup directory created: {backupFolder}");
+                }
+                else
+                {
+                    logEntries.Add($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [INFO] Backup directory already exists: {backupFolder}");
+                }
+
+                // Create database backup
+                logEntries.Add($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [INFO] Creating database backup...");
+                string timestamp = DateTime.Now.ToString("yyyyMMddHHmmss");
+                localBackupFilePath = Path.Combine(backupFolder, $"TestBackup_{timestamp}.bak");
+
+                // Delete old .bak files
+                var bakFiles = Directory.GetFiles(backupFolder, "*.bak");
+                if (bakFiles.Length > 0)
+                {
+                    logEntries.Add($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [INFO] Found {bakFiles.Length} old .bak file(s) to delete");
+                    foreach (var bakFile in bakFiles)
+                    {
+                        System.IO.File.Delete(bakFile);
+                        logEntries.Add($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [INFO] Old .bak file deleted: {Path.GetFileName(bakFile)}");
+                    }
+                }
+                else
+                {
+                    logEntries.Add($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [INFO] No old .bak files found");
+                }
+
+                // SQL backup command
+                string sqlCommand = $@"
+                   BACKUP DATABASE [db_Fluxion]
+                    TO DISK = N'{localBackupFilePath}'
+                    WITH FORMAT, MEDIANAME = 'SQLServerBackups', NAME = 'Full Backup of db_Fluxion';";
+
+                logEntries.Add($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [INFO] Executing SQL backup command...");
+                logEntries.Add($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [INFO] Target file: {Path.GetFileName(localBackupFilePath)}");
+
+                await using (var connection = new SqlConnection(connectionString))
+                {
+                    await connection.OpenAsync();
+                    logEntries.Add($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [INFO] Database connection opened successfully");
+
+                    using (var command = new SqlCommand(sqlCommand, connection))
+                    {
+                        command.CommandTimeout = 300; // 5 minutes timeout
+                        await command.ExecuteNonQueryAsync();
+                    }
+                }
+
+                logEntries.Add($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [SUCCESS] Database backup created successfully: {Path.GetFileName(localBackupFilePath)}");
+
+                // Get backup file size
+                long backupSize = new FileInfo(localBackupFilePath).Length;
+                logEntries.Add($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [INFO] Backup file size: {FormatFileSizeTest(backupSize)}");
+
+                // Verify 7-Zip exists
+                if (!System.IO.File.Exists(sevenZipPath))
+                {
+                    logEntries.Add($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [ERROR] 7-Zip not found at: {sevenZipPath}");
+                    throw new Exception($"7-Zip executable not found at: {sevenZipPath}");
+                }
+
+                // Encrypt backup
+                logEntries.Add($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [INFO] Encrypting backup file using 7-Zip...");
+                localEncryptedFilePath = Path.ChangeExtension(localBackupFilePath, ".7z");
+                logEntries.Add($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [INFO] Target encrypted file: {Path.GetFileName(localEncryptedFilePath)}");
+
+                string arguments = $"a -p{encryptionPassword} \"{localEncryptedFilePath}\" \"{localBackupFilePath}\"";
+
+                var process = new Process
+                {
+                    StartInfo = new ProcessStartInfo
+                    {
+                        FileName = sevenZipPath,
+                        Arguments = arguments,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        UseShellExecute = false,
+                        CreateNoWindow = true,
+                    }
+                };
+
+                logEntries.Add($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [INFO] Starting 7-Zip process...");
+                process.Start();
+                string output = process.StandardOutput.ReadToEnd();
+                string error = process.StandardError.ReadToEnd();
+                process.WaitForExit();
+
+                if (process.ExitCode != 0)
+                {
+                    string errorMessage = string.IsNullOrEmpty(error) ? "Unknown error" : error;
+                    logEntries.Add($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [ERROR] 7-Zip encryption failed with exit code {process.ExitCode}");
+                    logEntries.Add($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [ERROR] 7-Zip error: {errorMessage}");
+                    throw new Exception($"7-Zip encryption failed: {errorMessage}");
+                }
+
+                logEntries.Add($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [SUCCESS] Backup encrypted successfully: {Path.GetFileName(localEncryptedFilePath)}");
+
+                // Get encrypted file size
+                long encryptedSize = new FileInfo(localEncryptedFilePath).Length;
+                logEntries.Add($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [INFO] Encrypted file size: {FormatFileSizeTest(encryptedSize)}");
+                logEntries.Add($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [INFO] Compression ratio: {((1 - (double)encryptedSize / backupSize) * 100):F2}%");
+
+                // Delete unprotected .bak file
+                if (System.IO.File.Exists(localBackupFilePath))
+                {
+                    System.IO.File.Delete(localBackupFilePath);
+                    logEntries.Add($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [INFO] Unprotected .bak file deleted: {Path.GetFileName(localBackupFilePath)}");
+                }
+
+                // Clean up old .7z files except latest
+                var all7zFiles = Directory.GetFiles(backupFolder, "*.7z");
+                logEntries.Add($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [INFO] Found {all7zFiles.Length} .7z file(s) in backup directory");
+
+                var latest7z = all7zFiles.OrderByDescending(f => System.IO.File.GetCreationTimeUtc(f)).FirstOrDefault();
+
+                int deletedCount = 0;
+                foreach (var file in all7zFiles)
+                {
+                    if (!string.Equals(file, latest7z, StringComparison.OrdinalIgnoreCase))
+                    {
+                        System.IO.File.Delete(file);
+                        logEntries.Add($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [INFO] Old encrypted backup deleted: {Path.GetFileName(file)}");
+                        deletedCount++;
+                    }
+                }
+
+                if (deletedCount > 0)
+                {
+                    logEntries.Add($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [INFO] Total old backups cleaned up: {deletedCount}");
+                }
+                else
+                {
+                    logEntries.Add($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [INFO] No old backups to clean up");
+                }
+
+                DateTime endTime = DateTime.Now;
+                TimeSpan duration = endTime - startTime;
+
+                logEntries.Add($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [SUCCESS] ==========================================");
+                logEntries.Add($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [SUCCESS] TEST BACKUP COMPLETED SUCCESSFULLY");
+                logEntries.Add($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [INFO] Duration: {duration.TotalMinutes:F2} minutes ({duration.TotalSeconds:F0} seconds)");
+                logEntries.Add($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [INFO] End time: {endTime:yyyy-MM-dd HH:mm:ss}");
+                logEntries.Add($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [INFO] Latest backup file: {Path.GetFileName(localEncryptedFilePath)}");
+                logEntries.Add($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [INFO] Log file location: {backupLogFilePath}");
+                logEntries.Add($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [SUCCESS] ==========================================");
+                logEntries.Add("");
+
+                // Write to log file
+                System.IO.File.AppendAllLines(backupLogFilePath, logEntries);
+                logEntries.Add($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [INFO] Log file written successfully");
+
+                return Ok(new
+                {
+                    success = true,
+                    message = "Test backup completed successfully!",
+                    backupFile = Path.GetFileName(localEncryptedFilePath),
+                    backupSize = FormatFileSizeTest(backupSize),
+                    encryptedSize = FormatFileSizeTest(encryptedSize),
+                    compressionRatio = $"{((1 - (double)encryptedSize / backupSize) * 100):F2}%",
+
+                    duration = $"{duration.TotalMinutes:F2} minutes",
+                    backupPath = backupFolder,
+                    logFile = backupLogFilePath,
+                    oldBackupsDeleted = deletedCount,
+                    logs = logEntries
+                });
+            }
+            catch (Exception ex)
+            {
+                DateTime endTime = DateTime.Now;
+                TimeSpan duration = endTime - startTime;
+
+                logEntries.Add($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [ERROR] ==========================================");
+                logEntries.Add($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [ERROR] TEST BACKUP FAILED");
+                logEntries.Add($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [ERROR] Error: {ex.Message}");
+                logEntries.Add($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [ERROR] Stack Trace: {ex.StackTrace}");
+                logEntries.Add($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [ERROR] Duration before failure: {duration.TotalMinutes:F2} minutes");
+                logEntries.Add($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [ERROR] Failed at: {endTime:yyyy-MM-dd HH:mm:ss}");
+
+                if (!string.IsNullOrEmpty(localBackupFilePath))
+                {
+                    logEntries.Add($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [ERROR] Backup file (if created): {Path.GetFileName(localBackupFilePath)}");
+                }
+                if (!string.IsNullOrEmpty(localEncryptedFilePath))
+                {
+                    logEntries.Add($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [ERROR] Encrypted file (if created): {Path.GetFileName(localEncryptedFilePath)}");
+                }
+
+                logEntries.Add($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [ERROR] ==========================================");
+                logEntries.Add("");
+
+                // Write to log file even on failure
+                if (!string.IsNullOrEmpty(backupLogFilePath))
+                {
+                    try
+                    {
+                        System.IO.File.AppendAllLines(backupLogFilePath, logEntries);
+                        logEntries.Add($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [INFO] Error log written successfully");
+                    }
+                    catch (Exception logEx)
+                    {
+                        logEntries.Add($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [ERROR] Failed to write error log: {logEx.Message}");
+                    }
+                }
+
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "Test backup failed!",
+                    error = ex.Message,
+                    stackTrace = ex.StackTrace,
+                    duration = $"{duration.TotalMinutes:F2} minutes",
+                    backupPath = @"D:\DBBackup",
+                    logFile = backupLogFilePath,
+                    logs = logEntries
+                });
+            }
+        }
+
+        private async Task<string> GetBackupPathFromDb(string connectionString)
+        {
+            await using (var connection = new SqlConnection(connectionString))
+            {
+                await connection.OpenAsync();
+                using (var command = new SqlCommand("SELECT TOP 1 BackupPath FROM mtbl_ClientMaster", connection))
+                {
+                    var result = await command.ExecuteScalarAsync();
+                    if (result == null || result == DBNull.Value)
+                        throw new Exception("BackupPath not found in mtbl_ClientMaster.");
+                    return result.ToString();
+                }
+            }
+        }
+
+        private string FormatFileSizeTest(long bytes)
+        {
+            string[] sizes = { "B", "KB", "MB", "GB", "TB" };
+            double len = bytes;
+            int order = 0;
+            while (len >= 1024 && order < sizes.Length - 1)
+            {
+                order++;
+                len = len / 1024;
+            }
+            return $"{len:0.##} {sizes[order]}";
+        }
+        /******************* END TEST BACKUP ENDPOINT *******************/
 
         [AllowAnonymous]
         [HttpPost("generate")]
@@ -541,7 +833,7 @@ namespace Fluxion_Lab.Controllers
 
         [NonAction]
         [AllowAnonymous]
-        [HttpPost("uploadExe")] 
+        [HttpPost("uploadExe")]
         public async Task<IActionResult> UploadExe([FromForm] IFormFile exeFile)
         {
             if (exeFile == null || exeFile.Length == 0)
