@@ -28,6 +28,8 @@ namespace Fluxion_Lab.Controllers.Roles
         {
             public int? HeaderID { get; set; }
             public string? HeaderName { get; set; }
+            public string? AppName { get; set; }
+
             public List<string> ModuleNames { get; set; } = new();
         }
 
@@ -100,6 +102,13 @@ namespace Fluxion_Lab.Controllers.Roles
                     return BadRequest(_response);
                 }
 
+                if (string.IsNullOrWhiteSpace(request.AppName))
+                {
+                    _response.isSucess = false;
+                    _response.message = "AppName is required.";
+                    return BadRequest(_response);
+                }
+
                 var cleanedNames = request.ModuleNames
                     .Where(n => !string.IsNullOrWhiteSpace(n))
                     .Select(n => n.Trim())
@@ -160,15 +169,15 @@ namespace Fluxion_Lab.Controllers.Roles
                 }
 
                 // Insert without explicit ModuleID (identity handled by DB)
-                const string insertModuleSql = @"INSERT INTO [dbo].[sstbl_AuthModules] ([HeaderID], [ModuleName])
+                const string insertModuleSql = @"INSERT INTO [dbo].[sstbl_AuthModules] ([HeaderID], [ModuleName], [AppName])
                                                 OUTPUT INSERTED.[ModuleID]
-                                                VALUES (@HeaderID, @ModuleName);";
+                                                VALUES (@HeaderID, @ModuleName, @AppName);";
 
                 var inserted = new List<object>();
                 foreach (var name in cleanedNames)
                 {
-                    int moduleId = _dbcontext.ExecuteScalar<int>(insertModuleSql, new { HeaderID = headerId, ModuleName = name }, transaction);
-                    inserted.Add(new { ModuleID = moduleId, HeaderID = headerId, ModuleName = name });
+                    int moduleId = _dbcontext.ExecuteScalar<int>(insertModuleSql, new { HeaderID = headerId, ModuleName = name, AppName = request.AppName }, transaction);
+                    inserted.Add(new { ModuleID = moduleId, HeaderID = headerId, ModuleName = name, AppName = request.AppName });
                 }
 
                 transaction.Commit();
@@ -176,6 +185,132 @@ namespace Fluxion_Lab.Controllers.Roles
                 _response.isSucess = true;
                 _response.message = "Success";
                 _response.data = inserted;
+                return Ok(_response);
+            }
+            catch (Exception ex)
+            {
+                _response.isSucess = false;
+                _response.message = ex.Message;
+                return StatusCode(500, _response);
+            }
+        }
+
+        // DTO for updating modules
+        public class UpdateModuleRequest
+        {
+            public int ModuleID { get; set; }
+            public string ModuleName { get; set; }
+            public string? AppName { get; set; }
+        }
+
+        // PUT: api/roles/putModules
+        // Updates existing modules
+        [AllowAnonymous]
+        [HttpPost("putModules")]
+        public IActionResult PutModules([FromBody] List<UpdateModuleRequest> request)
+        {
+            try
+            {
+                // Validate input
+                if (request == null || !request.Any())
+                {
+                    _response.isSucess = false;
+                    _response.message = "Request cannot be empty.";
+                    return BadRequest(_response);
+                }
+
+                // Validate each module update
+                foreach (var module in request)
+                {
+                    if (module.ModuleID <= 0)
+                    {
+                        _response.isSucess = false;
+                        _response.message = "Valid ModuleID is required for all modules.";
+                        return BadRequest(_response);
+                    }
+
+                    if (string.IsNullOrWhiteSpace(module.ModuleName))
+                    {
+                        _response.isSucess = false;
+                        _response.message = "ModuleName cannot be empty.";
+                        return BadRequest(_response);
+                    }
+
+                    if (string.IsNullOrWhiteSpace(module.AppName))
+                    {
+                        _response.isSucess = false;
+                        _response.message = "AppName is required for all modules.";
+                        return BadRequest(_response);
+                    }
+                }
+
+                var cleanedUpdates = request
+                    .Select(m => new UpdateModuleRequest
+                    {
+                        ModuleID = m.ModuleID,
+                        ModuleName = m.ModuleName.Trim(),
+                        AppName = m.AppName?.Trim()
+                    })
+                    .ToList();
+
+                if (_dbcontext.State != ConnectionState.Open)
+                    _dbcontext.Open();
+
+                using var transaction = _dbcontext.BeginTransaction();
+
+                // Check if all modules exist
+                var moduleIds = cleanedUpdates.Select(m => m.ModuleID).ToList();
+                const string existSql = "SELECT COUNT(1) FROM [dbo].[sstbl_AuthModules] WHERE [ModuleID] IN @ModuleIDs";
+                var existingCount = _dbcontext.ExecuteScalar<int>(existSql, new { ModuleIDs = moduleIds }, transaction);
+
+                if (existingCount != moduleIds.Count)
+                {
+                    transaction.Rollback();
+                    _response.isSucess = false;
+                    _response.message = "One or more modules not found.";
+                    return NotFound(_response);
+                }
+
+                // Check for duplicate names within the same header
+                const string dupCheckSql = @"
+                    SELECT m1.[ModuleName]
+                    FROM [dbo].[sstbl_AuthModules] m1
+                    INNER JOIN [dbo].[sstbl_AuthModules] m2 ON m1.[HeaderID] = m2.[HeaderID]
+                    WHERE m1.[ModuleID] IN @ModuleIDs
+                      AND m2.[ModuleName] IN @ModuleNames
+                      AND m1.[ModuleID] != m2.[ModuleID]";
+
+                var moduleNames = cleanedUpdates.Select(m => m.ModuleName).ToList();
+                var duplicates = _dbcontext.Query<string>(dupCheckSql,
+                    new { ModuleIDs = moduleIds, ModuleNames = moduleNames }, transaction).ToList();
+
+                if (duplicates.Any())
+                {
+                    transaction.Rollback();
+                    _response.isSucess = false;
+                    _response.message = "One or more module names already exist for the same header.";
+                    _response.data = new { duplicates = duplicates };
+                    return Conflict(_response);
+                }
+
+                // Update modules
+                const string updateSql = @"UPDATE [dbo].[sstbl_AuthModules]
+                                          SET [ModuleName] = @ModuleName,
+                                              [AppName] = @AppName
+                                          WHERE [ModuleID] = @ModuleID;";
+
+                var updated = new List<object>();
+                foreach (var module in cleanedUpdates)
+                {
+                    _dbcontext.Execute(updateSql, new { ModuleID = module.ModuleID, ModuleName = module.ModuleName, AppName = module.AppName }, transaction);
+                    updated.Add(new { ModuleID = module.ModuleID, ModuleName = module.ModuleName, AppName = module.AppName });
+                }
+
+                transaction.Commit();
+
+                _response.isSucess = true;
+                _response.message = "Success";
+                _response.data = updated;
                 return Ok(_response);
             }
             catch (Exception ex)

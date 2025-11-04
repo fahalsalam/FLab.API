@@ -677,5 +677,53 @@ namespace Fluxion_Lab.Controllers.Reports
             }
         } 
         #endregion
+
+        #region Stock Ageing Report
+        [HttpGet("getStockAgingReport")]
+        public IActionResult GetStockAgingReport([FromHeader] int itemNo, [FromHeader] string? fromDate, [FromHeader] string? toDate)
+        {
+            try
+            {
+                string token = Request.Headers["Authorization"];
+                token = token.Substring(7);
+
+                var tokenClaims = Fluxion_Handler.GetJWTTokenClaims(token, _key._jwtKey, true);
+
+                var parameters = new DynamicParameters();
+                parameters.Add("@Flag", 119);
+                parameters.Add("@ClientID", tokenClaims.ClientId);
+                parameters.Add("@ItemNo", itemNo);
+                parameters.Add("@FromDate", fromDate);
+                parameters.Add("@ToDate", toDate);
+
+                var result = _dbcontext.QueryMultiple("SP_Reports", parameters, commandType: CommandType.StoredProcedure);
+
+                // Fetch summary data
+                var summaryData = result.Read<dynamic>().ToList();
+
+                // Fetch ledger data
+                var ledgerData = result.Read<dynamic>().ToList();
+
+                var response = new
+                {
+                    isSucess = true,
+                    message = "Success",
+                    data = new
+                    {
+                        summary = summaryData,
+                        ledger = ledgerData
+                    }
+                };
+                return Ok(response);
+            }
+            catch (Exception ex)
+            {
+                _response.isSucess = false;
+                _response.message = ex.Message;
+
+                return StatusCode(500, _response);
+            }
+        }
+        #endregion
     }
 }

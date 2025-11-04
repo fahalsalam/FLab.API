@@ -1177,54 +1177,6 @@ namespace Fluxion_Lab.Controllers.Reception
         }
         #endregion
 
-
-        #region Dotmetrics PRINT
-        [HttpGet("printDotMetrics")]
-        public IActionResult PrintDotMetrics([FromHeader] int Sequence, [FromHeader] long InvoiceNo, [FromHeader] int EditNo, [FromHeader] string printerName)
-        {
-            try
-            {
-                string token = Request.Headers["Authorization"];
-                token = token.Substring(7);
-                var tokenClaims = Fluxion_Handler.GetJWTTokenClaims(token, _key._jwtKey, true);
-
-                var parameters = new DynamicParameters();
-                parameters.Add("@Flag", 109);
-                parameters.Add("@ClientID", tokenClaims.ClientId);
-                parameters.Add("@Sequence", Sequence);
-                parameters.Add("@InvoiceNo", InvoiceNo);
-                parameters.Add("@EditNo", EditNo);
-
-                using (var multi = _dbcontext.QueryMultiple("SP_Reception", parameters, commandType: CommandType.StoredProcedure))
-                {
-                    var generalSettings = multi.Read().ToList();
-                    var headerInfo = multi.Read().ToList();
-                    var lineItems = multi.Read().ToList();
-
-                    var result = new {
-                        GeneralSettings = generalSettings,
-                        HeaderInfo = headerInfo,
-                        LineItems = lineItems
-                    };
-
-                    // Call printer service
-                    _printerService.PrintDotMetricsReceipt(result, printerName);
-
-                    _response.isSucess = true;
-                    _response.message = "Success & Print job sent";
-                    _response.data = result;
-                    return Ok(_response);
-                }
-            }
-            catch (Exception ex)
-            {
-                _response.isSucess = false;
-                _response.message = ex.Message;
-                return StatusCode(500, _response);
-            }
-        }
-        #endregion
-
         #region GET Invoice Payment History
         [HttpGet("getInvoicePaymentHistory")]
         public IActionResult GetInvoicePaymentHistory( [FromHeader] long InvoiceNo, [FromHeader] int Sequence, [FromHeader] string TransType)

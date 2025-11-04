@@ -1,5 +1,14 @@
-﻿namespace Fluxion_Lab.Models.Masters.TestMaster
+﻿using System.Collections.Generic;
+
+namespace Fluxion_Lab.Models.Masters.TestMaster
 {
+    public class TestItem
+    {
+        public long ItemNo { get; set; }
+        public decimal? MinReagentValue { get; set; }
+        public string? MinReagentUnit { get; set; }
+    }
+
     public class TestMaster
     {
         public string TestName { get; set; }
@@ -12,9 +21,7 @@
         public decimal? LowValue { get; set; }
         public decimal? HighValue { get; set; } 
         public string? Specimen { get; set; }
-        public decimal? MinReagentValue { get; set; }
-        public string? MinReagentUnit{ get; set; } 
-        public long? ItemNo { get; set; } 
+        public List<TestItem> Items { get; set; }
         public decimal? Discount { get; set; }
         public string? MachineName { get; set; }
         public string? AltTestName { get; set; }

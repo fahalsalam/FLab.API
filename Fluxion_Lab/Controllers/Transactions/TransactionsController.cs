@@ -1056,6 +1056,39 @@ namespace Fluxion_Lab.Controllers.Transactions
         }
         #endregion
 
+        #region get Patient Result History
+        [HttpGet("getPateintResultHistory")]
+        public IActionResult getPateintResultHistory([FromHeader] int? TestID, [FromHeader] long? PatientID)
+        {
+            try
+            {
+                string token = Request.Headers["Authorization"];
+                token = token.Substring(7);
+
+                var tokenClaims = Fluxion_Handler.GetJWTTokenClaims(token, _key._jwtKey, true);
+
+                var parameters = new DynamicParameters();
+                parameters.Add("@Flag", 110);
+                parameters.Add("@ClientID", tokenClaims.ClientId); 
+                parameters.Add("@PatientID", PatientID);
+                parameters.Add("@TestID", TestID); 
+
+                var data = _dbcontext.Query("SP_TestEntry", parameters, commandType: CommandType.StoredProcedure);
+
+                _response.isSucess = true;
+                _response.message = "Success";
+                _response.data = data;
+                return Ok(_response);
+            }
+            catch (Exception ex)
+            {
+                _response.isSucess = false;
+                _response.message = ex.Message;
+                return StatusCode(500, _response);
+            }
+        }
+        #endregion
+
         #endregion
 
         #region Payment to Supplier

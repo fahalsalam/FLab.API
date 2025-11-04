@@ -2284,7 +2284,8 @@ namespace Fluxion_Lab.Controllers.Masters
                     modules = g.Select(m => new
                     {
                         moduleID = m.ModuleID,
-                        moduleName = m.ModuleName
+                        moduleName = m.ModuleName,
+                        appName = m.AppName,
                     }).ToList()
                 }).ToList();
 
@@ -2783,6 +2784,39 @@ namespace Fluxion_Lab.Controllers.Masters
                 parameters.Add("@EditNo", EditNo);
 
                 var data = _dbcontext.Query("SP_TestEntry", parameters, commandType: CommandType.StoredProcedure);
+
+                _response.isSucess = true;
+                _response.message = "Success";
+                _response.data = data;
+
+                return Ok(_response);
+            }
+            catch (Exception ex)
+            {
+                _response.isSucess = false;
+                _response.message = ex.Message;
+                return StatusCode(500, _response);
+            }
+        }
+        #endregion
+
+        #region OutSource Test Mapping GET
+        [HttpGet("getOutSourceTestMapping")]
+        public IActionResult GetOutSourceTestMapping([FromHeader] long LabID)
+        {
+            try
+            {
+                string token = Request.Headers["Authorization"];
+                token = token.Substring(7);
+
+                var tokenClaims = Fluxion_Handler.GetJWTTokenClaims(token, _key._jwtKey, true);
+
+                var parameters = new DynamicParameters();
+                parameters.Add("@Flag", 132);
+                parameters.Add("@ClientID", tokenClaims.ClientId);
+                parameters.Add("@ID", LabID);
+
+                var data = _dbcontext.Query("SP_Masters", parameters, commandType: CommandType.StoredProcedure);
 
                 _response.isSucess = true;
                 _response.message = "Success";
