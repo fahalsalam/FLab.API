@@ -21,9 +21,9 @@ namespace Fluxion_Lab.Models.Masters.Machine_Analyzer
             public string testName { get; set; }
             public string section { get; set; }
             public List<TestDetail> tests { get; set; }
-            public int? testCount { get; set; }  // Added: Optional field for test count
-            public List<MachineData> machine_data { get; set; }  // Added: Machine data array
-            public string note { get; set; }  // Added: Optional note field
+            public int? testCount { get; set; } 
+            public List<MachineData> machine_data { get; set; } 
+            public string note { get; set; } 
         }
 
         public class TestDetail
@@ -37,7 +37,7 @@ namespace Fluxion_Lab.Models.Masters.Machine_Analyzer
             public List<TestDetail> subArrays { get; set; }
         }
 
-        // New class for Machine Data
+       
         public class MachineData
         {
             public int? id { get; set; }

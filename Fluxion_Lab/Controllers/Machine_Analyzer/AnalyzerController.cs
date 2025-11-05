@@ -2,6 +2,7 @@
 using Fluxion_Lab.Classes.DBOperations;
 using Fluxion_Lab.Models.General;
 using Fluxion_Lab.Services.Masters;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.DataProtection.KeyManagement;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -246,20 +247,7 @@ namespace Fluxion_Lab.Controllers.Machine_Analyzer
                     })
                     .ToList();
 
-                // Update IsResultSent to true for all processed records
-                //if (rawData.Any())
-                //{
-                //    var barcodes = rawData.Select(x => x.Barcode).Distinct().ToArray();
-
-                //    // Create a temp table or use table-valued parameter
-                //    var updateQuery = @"
-                //    UPDATE [dbo].[trntbl_BarcodeMachineData] 
-                //    SET IsResultSent = 1 
-                //    WHERE Barcode IN @barcodes";
-
-                //    _dbcontext.Execute(updateQuery, new { barcodes });
-                //}
-
+                
                 _response.isSucess = true;
                 _response.message = "Success";
                 _response.data = groupedData;
@@ -277,6 +265,7 @@ namespace Fluxion_Lab.Controllers.Machine_Analyzer
         #endregion
 
         #region POST Analyzer Results Barcode Data
+        [AllowAnonymous]
         [HttpPost("postAnalyzerResultsBarcodeData")]
         public async Task<IActionResult> postAnalyzerResultsBarcodeData([FromBody] List<DeviceResult> _test)
         {
