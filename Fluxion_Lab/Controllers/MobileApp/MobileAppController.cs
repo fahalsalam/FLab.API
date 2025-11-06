@@ -37,201 +37,6 @@ namespace Fluxion_Lab.Controllers.MobileApp
             _response = response;
         }
 
-        #region Test Data Sync
-        /// <summary>
-        /// Triggers the Test Data Summary sync from local → prod.
-        /// </summary>
-        [HttpPost("sync-test-summary")]
-        public async Task<IActionResult> SyncTestDataSummary()
-        {
-            try
-            {
-                await SyncTestDataFromLocalMachine();
-                return Ok(new { message = "Data sync completed successfully." });
-            }
-            catch (Exception ex)
-            {
-                 
-                return StatusCode(500, new { error = ex.Message });
-            }
-        }
-
-
-        private async Task SyncTestDataFromLocalMachine()
-        {
-            long clientID = 0;
-            string clientName = string.Empty;
-
-            try
-            {
-                // Get client ID from local
-                clientID = await GetClientIDFromLocal();
-
-                using (var offlineConn = new SqlConnection(offlineConnectionString))
-                {
-                    await offlineConn.OpenAsync();
-
-                    var parameters = new DynamicParameters();
-                    parameters.Add("@InvoiceNo", 0L);
-                    parameters.Add("@Sequeece", 0L);
-
-                    var multi = await offlineConn.QueryMultipleAsync("SP_ClientTestDataSync", parameters, commandType: CommandType.StoredProcedure);
-
-                    var header = multi.Read<TestEntryHeader>().ToList();
-                    var clientInfo = multi.Read<dynamic>()
-                                          .Select(x => new { ClientID = (long)x.ClientID, ClientName = (string)x.ClientName })
-                                          .FirstOrDefault();
-                    var lineItems = multi.Read<TestEntryLine>().ToList();
-
-                    if (clientInfo != null)
-                    {
-                        clientID = clientInfo.ClientID;
-                        clientName = clientInfo.ClientName;
-                    }
-
-                    // Push to online
-                    using (var onlineConn = new SqlConnection(onlineConnectionString))
-                    {
-                        await onlineConn.OpenAsync();
-
-                        var p1 = new DynamicParameters();
-                        p1.Add("@JsonHeaderData", JsonConvert.SerializeObject(header));
-                        p1.Add("@JsonDetailData", JsonConvert.SerializeObject(lineItems));
-
-                        var returned = (await onlineConn.QueryAsync<dynamic>("SP_ClientTestDataSummary", p1, commandType: CommandType.StoredProcedure)).ToList();
-
-                        if (returned.Any())
-                        {
-                            LogDataSync(onlineConn, clientID, clientName, "Data sync successful", false, true);
-
-                            // Update local flags
-                            string json = JsonConvert.SerializeObject(returned);
-                            var updateSql = @"
-                                DECLARE @json NVARCHAR(MAX) = @JsonData;
-                                DECLARE @temp TABLE (Sequence BIGINT, InvoiceNo BIGINT, EditNo BIGINT);
-
-                                INSERT INTO @temp (Sequence, InvoiceNo, EditNo)
-                                SELECT Sequence, InvoiceNo, EditNo
-                                FROM OPENJSON(@json)
-                                WITH (Sequence BIGINT, InvoiceNo BIGINT, EditNo BIGINT);
-
-                                UPDATE H
-                                SET H.IsDataSynced = 1
-                                FROM trntbl_TestEntriesHdr H
-                                INNER JOIN @temp T ON H.Sequence = T.Sequence AND H.InvoiceNo = T.InvoiceNo AND H.EditNo = T.EditNo;
-
-                                UPDATE L
-                                SET L.IsDataSynced = 1
-                                FROM trntbl_TestEntriesLine L
-                                INNER JOIN @temp T ON L.Sequence = T.Sequence AND L.InvoiceNo = T.InvoiceNo AND L.EditNo = T.EditNo;";
-                            using (var flagConn = new SqlConnection(offlineConnectionString))
-                            {
-                                await flagConn.OpenAsync();
-                                await flagConn.ExecuteAsync(updateSql, new { JsonData = json }, commandType: CommandType.Text);
-                            }
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                try
-                {
-                    var decConn = Fluxion_Handler.DecryptString(onlineConnectionString, Fluxion_Handler.APIString);
-                    using var conn = new SqlConnection(decConn);
-                    await conn.OpenAsync();
-                    LogDataSync(conn, clientID, clientName, ex.Message, true, false);
-                }
-                catch (Exception logEx)
-                {
-                }
-
-                throw;
-            }
-        }
-
-        private void LogDataSync(SqlConnection connection, long clientID, string clientName, string message, bool isError, bool isSuccess)
-        {
-            var p = new DynamicParameters();
-            p.Add("@ClientID", clientID);
-            p.Add("@ClientName", clientName);
-            p.Add("@SyncMessage", message);
-            p.Add("@ErrorTime", DateTime.Now);
-            p.Add("@IsSyncWithError", isError);
-            p.Add("@IsDataSyncSucess", isSuccess);
-
-            var sql = @"
-                INSERT INTO DataSyncLogs (ClientID, ClientName, SyncMessage, ErrorTime, IsSyncWithError, IsDataSyncSucess)
-                VALUES (@ClientID, @ClientName, @SyncMessage, @ErrorTime, @IsSyncWithError, @IsDataSyncSucess);";
-
-            connection.Execute(sql, p);
-        }
-
-        private async Task<long> GetClientIDFromLocal()
-        {
-            using (var conn = new SqlConnection(offlineConnectionString))
-            {
-                await conn.OpenAsync();
-                var result = await conn.QueryFirstOrDefaultAsync<GetClientID>("SELECT ClientID FROM mtbl_ClientMaster");
-                return result?.ClientID ?? 0;
-            }
-        }
-
-        // DTOs – populate properties to match your SP output
-        public class TestEntryHeader {
-
-            public long? ClientID { get; set; }
-            public string? ClientName { get; set; }
-            public long? PatientID { get; set; }
-            public string? PatientName { get; set; }
-            public int? Age { get; set; }
-            public string? MobileNo { get; set; }
-            public string? DOB { get; set; }
-            public string? EntryDate { get; set; }
-            public long? InvoiceNo { get; set; }
-            public int? Sequence { get; set; }
-            public string? SequenceName { get; set; }
-            public long? EditNo { get; set; }
-            public decimal? GrandTotal { get; set; }
-            public string? ResultStatus { get; set; }
-            public string? PaymentStatus { get; set; }
-            public string? LastModified { get; set; }
-            public string? HeaderImageUrl { get; set; }
-            public string? FooterImageUrl { get; set; }
-            public string? LineJsonData { get; set; }
-            public string? Gender { get; set; }
-            public string? DrName { get; set; }
-            public DateTime? CreatedDateTime { get; set; }
-            public string? ResultApprovedBy { get; set; }
-            public DateTime? ResultApprovedDateTime { get; set; }
-            public string? ResultVerifiedBy { get; set; }
-            public string? ResultApproveSign { get; set; }
-            public string? LabName { get; set; }
-            public decimal? BalanceDue { get; set; }
-            public decimal? DiscAmount { get; set; }
-
-        }
-        public class TestEntryLine {
-
-            public int? Sequence { get; set; }
-            public long? InvoiceNo { get; set; }
-            public long? EditNo { get; set; }
-            public int? SI_No { get; set; }
-            public int? ID { get; set; }
-            public string? Name { get; set; }
-            public string? Type { get; set; }
-            public string? LineStatus { get; set; }
-            public long? ClientID { get; set; }
-
-        }
-
-        public class GetClientID
-        {
-            public long? ClientID { get; set; }
-        }
-
-
-        #endregion
 
         #region Get Mobile No Verification
         [AllowAnonymous]
@@ -661,9 +466,120 @@ namespace Fluxion_Lab.Controllers.MobileApp
         }
         #endregion
 
+        #region Mobile Data Sync
+        [HttpPost("syncClientTestData")]
+        public async Task<IActionResult> SyncClientTestData([FromHeader] long? ClientID, [FromBody] SyncPayloadDto payload)
+        {
+            try
+            {
+                if (payload == null || payload.headers == null || !payload.headers.Any())
+                {
+                    _response.isSucess = false;
+                    _response.message = "Payload must contain header.";
+                    return BadRequest(_response);
+                }
 
+                var results = new List<object>();
 
+                // Process headers (assuming single for now, take first)
+                var header = payload.headers.First();
 
+  
+                // serialize arrays expected by SP
+                var headerJson = JsonConvert.SerializeObject(payload.headers);
+                var linesJson = JsonConvert.SerializeObject(payload.lines);
+
+                var parameters = new DynamicParameters();
+                parameters.Add("@JsonHeaderData", headerJson);
+                parameters.Add("@JsonDetailData", linesJson);
+
+                // call stored procedure (async)
+                var inserted = await _dbcontext.QueryAsync("SP_ClientTestDataSummary", parameters, commandType: CommandType.StoredProcedure);
+
+                var insertedList = inserted
+                    .Select(r => new
+                    {
+                        Sequence = r.Sequence == null ? (int?)null : (int)r.Sequence,
+                        InvoiceNo = r.InvoiceNo == null ? (long?)null : (long)r.InvoiceNo,
+                        EditNo = r.EditNo == null ? (long?)null : (long)r.EditNo
+                    })
+                    .ToList();
+
+                results.Add(new
+                {
+                    header = new { header.Sequence, header.InvoiceNo, header.EditNo },
+                    inserted = insertedList
+                });
+
+                var response = new
+                {
+                    isSucess = true,
+                    message = "Sync completed.",
+                    data = results
+                };
+
+                return Ok(response);
+            }
+            catch (Exception ex)
+            { 
+                _response.isSucess = false;
+                _response.message = ex.Message; 
+                return StatusCode(500, _response);
+            }
+        }
+
+        #endregion
+        public class TestEntryHeaderDto
+        {
+            public long? ClientID { get; set; }
+            public string? ClientName { get; set; }
+            public long? PatientID { get; set; }
+            public string? PatientName { get; set; }
+            public int? Age { get; set; }
+            public string? MobileNo { get; set; }
+            public string? DOB { get; set; }
+            public string? EntryDate { get; set; }
+            public long? InvoiceNo { get; set; }
+            public int? Sequence { get; set; }
+            public string? SequenceName { get; set; }
+            public long? EditNo { get; set; }
+            public decimal? GrandTotal { get; set; }
+            public string? ResultStatus { get; set; }
+            public string? PaymentStatus { get; set; }
+            public string? LastModified { get; set; }
+            public string? HeaderImageUrl { get; set; }
+            public string? FooterImageUrl { get; set; }
+            public string? LineJsonData { get; set; }
+            public string? Gender { get; set; }
+            public string? DrName { get; set; }
+            public DateTime? CreatedDateTime { get; set; }
+            public string? ResultApprovedBy { get; set; }
+            public DateTime? ResultApprovedDateTime { get; set; }
+            public string? ResultVerifiedBy { get; set; }
+            public string? ResultApproveSign { get; set; }
+            public string? LabName { get; set; }
+            public decimal? BalanceDue { get; set; }
+            public decimal? DiscAmount { get; set; }
+        }
+
+        public class TestEntryLineDto
+        {
+            public int? Sequence { get; set; }
+            public long? InvoiceNo { get; set; }
+            public long? EditNo { get; set; }
+            public int? SI_No { get; set; }
+            public int? ID { get; set; }
+            public string? Name { get; set; }
+            public string? Type { get; set; }
+            public string? LineStatus { get; set; }
+            public long? ClientID { get; set; }
+        }
+
+        public class SyncPayloadDto
+        {
+            public List<TestEntryHeaderDto> headers { get; set; }
+            public List<TestEntryLineDto> lines { get; set; }
+        }
 
         public class ClientMobileAppConfigRequest
         {
