@@ -1,8 +1,10 @@
 ﻿using Dapper;
 using Fluxion_Lab.Classes.DBOperations;
 using Fluxion_Lab.Models.General;
+using Fluxion_Lab.Models.Masters.DoctorMaster;
 using Fluxion_Lab.Models.Masters.GeneralSettings;
 using Fluxion_Lab.Models.Masters.ItemMaster;
+using Fluxion_Lab.Models.Masters.Manufacture;
 using Fluxion_Lab.Models.Masters.SupplierMaster;
 using Fluxion_Lab.Models.Masters.TestGroupMaster;
 using Fluxion_Lab.Models.Masters.TestMaster;
@@ -22,14 +24,13 @@ using static Fluxion_Lab.Controllers.Authentication.AuthenticationController;
 using static Fluxion_Lab.Controllers.Transactions.TransactionsController;
 using static Fluxion_Lab.Models.General.BodyParams;
 using static Fluxion_Lab.Models.MachineConfig.MachineConfig;
+using static Fluxion_Lab.Models.Masters.DoctorMaster.DoctorMasterWithSchedule;
+using static Fluxion_Lab.Models.Masters.Machine_Analyzer.MachineAnalyzer;
 using static Fluxion_Lab.Models.Masters.PatientMaster.Patients;
 using static Fluxion_Lab.Models.Masters.PrivilegeCards.PrivilageCards;
 using static Fluxion_Lab.Models.Masters.TestGroupMaster.TestGroupMaster;
 using static Fluxion_Lab.Models.RBACL.RBACL;
-using static Fluxion_Lab.Models.Masters.DoctorMaster.DoctorMasterWithSchedule;
 using static Fluxion_Lab.Models.Transactions.TestEntries.TestEntries;
-using Fluxion_Lab.Models.Masters.DoctorMaster;
-using static Fluxion_Lab.Models.Masters.Machine_Analyzer.MachineAnalyzer;
 
 namespace Fluxion_Lab.Controllers.Masters
 {
@@ -799,7 +800,7 @@ namespace Fluxion_Lab.Controllers.Masters
 
         #region  Test Master Delete
         [HttpPost("deleteItemMaster")]
-        public IActionResult DeleteItemMaster([FromHeader] long ItemNo)
+        public IActionResult DeleteItemMaster([FromHeader] long ItemNo, [FromHeader] bool IsActive)
         {
             try
             {
@@ -812,6 +813,8 @@ namespace Fluxion_Lab.Controllers.Masters
                 parameters.Add("@Flag", 103);
                 parameters.Add("@ClientID", tokenClaims.ClientId);
                 parameters.Add("@ItemNo", ItemNo);
+                parameters.Add("@IsActive", ItemNo);
+
                 parameters.Add("@UserID", tokenClaims.UserId);
 
                 bool result = _dbcontext.ExecuteScalar<bool>("SP_ItemMaster", parameters, commandType: CommandType.StoredProcedure);
@@ -822,6 +825,7 @@ namespace Fluxion_Lab.Controllers.Masters
                     parameters1.Add("@Flag", 104);
                     parameters1.Add("@ClientID", tokenClaims.ClientId);
                     parameters1.Add("@ItemNo", ItemNo);
+                    parameters.Add("@IsActive", IsActive);
                     parameters1.Add("@UserID", tokenClaims.UserId);
 
                     var _data = _dbcontext.ExecuteScalar<bool>("SP_ItemMaster", parameters1, commandType: CommandType.StoredProcedure);
@@ -850,6 +854,43 @@ namespace Fluxion_Lab.Controllers.Masters
         }
         #endregion
 
+        #region  Test Master Delete
+        [HttpPost("InactiveItemMaster")]
+        public IActionResult InactiveItemMaster([FromHeader] long ItemNo, [FromHeader] bool IsActive)
+        {
+            try
+            {
+                string token = Request.Headers["Authorization"];
+                token = token.Substring(7);
+
+                var tokenClaims = Fluxion_Handler.GetJWTTokenClaims(token, _key._jwtKey, true); 
+               
+                var parameters1 = new DynamicParameters();
+                parameters1.Add("@Flag", 105);
+                parameters1.Add("@ClientID", tokenClaims.ClientId);
+                parameters1.Add("@ItemNo", ItemNo);
+                parameters1.Add("@IsActive", IsActive);
+                parameters1.Add("@UserID", tokenClaims.UserId);
+
+                var _data = _dbcontext.ExecuteScalar<bool>("SP_ItemMaster", parameters1, commandType: CommandType.StoredProcedure);
+
+                _response.isSucess = true;
+                _response.message = "Success";
+                _response.data = _data; 
+
+                return Ok(_response);
+
+            }
+            catch (Exception ex)
+            {
+                _response.isSucess = false;
+                _response.message = ex.Message;
+
+                return StatusCode(500, _response);
+            }
+        }
+        #endregion
+
         /*********** Supplier Master *********/
 
         #region Supplier Master POST
@@ -858,7 +899,14 @@ namespace Fluxion_Lab.Controllers.Masters
         {
             try
             {
-                string token = Request.Headers["Authorization"];
+                // Get Authorization header safely
+                if (!Request.Headers.ContainsKey("Authorization"))
+                    return Unauthorized(new { isSucess = false, message = "Authorization header missing" });
+
+                string token = Request.Headers["Authorization"].ToString();
+                if (string.IsNullOrWhiteSpace(token) || token.Length <= 7)
+                    return Unauthorized(new { isSucess = false, message = "Invalid authorization token" });
+
                 token = token.Substring(7);
 
                 var tokenClaims = Fluxion_Handler.GetJWTTokenClaims(token, _key._jwtKey, true);
@@ -866,6 +914,7 @@ namespace Fluxion_Lab.Controllers.Masters
                 var parameters = new DynamicParameters();
                 parameters.Add("@Flag", 100);
                 parameters.Add("@ClientID", tokenClaims.ClientId);
+                // core fields
                 parameters.Add("@SupplierCode", _supplier.SupplierCode);
                 parameters.Add("@SupplierName", _supplier.SupplierName);
                 parameters.Add("@Address", _supplier.Address);
@@ -874,8 +923,19 @@ namespace Fluxion_Lab.Controllers.Masters
                 parameters.Add("@Place", _supplier.Place);
                 parameters.Add("@CreditDays", _supplier.CreditDays);
 
+                // NEW fields from the UI / updated SP
+                parameters.Add("@City", _supplier.City);
+                parameters.Add("@State", _supplier.State);
+                parameters.Add("@Pincode", _supplier.Pincode);
+                parameters.Add("@Phone1", _supplier.Phone1);
+                parameters.Add("@Phone2", _supplier.Phone2);
+                parameters.Add("@Email", _supplier.Email);
+                parameters.Add("@ContactPersonName", _supplier.ContactPersonName);
+                parameters.Add("@ContactPersonNumber", _supplier.ContactPersonNumber);
+
                 parameters.Add("@UserID", tokenClaims.UserId);
 
+                // Execute stored proc. Using Query to keep same pattern; first result contains SupplierID returned by SP.
                 var data = _dbcontext.Query("SP_SupplierMaster", parameters, commandType: CommandType.StoredProcedure);
 
                 _response.isSucess = true;
@@ -883,17 +943,16 @@ namespace Fluxion_Lab.Controllers.Masters
                 _response.data = data;
 
                 return Ok(_response);
-
             }
             catch (Exception ex)
             {
                 _response.isSucess = false;
                 _response.message = ex.Message;
-
                 return StatusCode(500, _response);
             }
         }
         #endregion
+
 
         #region Supplier Master PUT
         [HttpPost("putSupplierMaster")]
@@ -901,7 +960,14 @@ namespace Fluxion_Lab.Controllers.Masters
         {
             try
             {
-                string token = Request.Headers["Authorization"];
+                // Validate Authorization header
+                if (!Request.Headers.ContainsKey("Authorization"))
+                    return Unauthorized(new { isSucess = false, message = "Authorization header missing" });
+
+                string token = Request.Headers["Authorization"].ToString();
+                if (string.IsNullOrWhiteSpace(token) || token.Length <= 7)
+                    return Unauthorized(new { isSucess = false, message = "Invalid authorization token" });
+
                 token = token.Substring(7);
 
                 var tokenClaims = Fluxion_Handler.GetJWTTokenClaims(token, _key._jwtKey, true);
@@ -910,12 +976,26 @@ namespace Fluxion_Lab.Controllers.Masters
                 parameters.Add("@Flag", 101);
                 parameters.Add("@ClientID", tokenClaims.ClientId);
                 parameters.Add("@SuplierID", supplierID);
+
+                // core fields
                 parameters.Add("@SupplierCode", _supplier.SupplierCode);
                 parameters.Add("@SupplierName", _supplier.SupplierName);
                 parameters.Add("@Address", _supplier.Address);
                 parameters.Add("@MobileNo", _supplier.MobileNo);
                 parameters.Add("@GstNo", _supplier.GstNo);
                 parameters.Add("@Place", _supplier.Place);
+                parameters.Add("@CreditDays", _supplier.CreditDays);
+
+                // NEW fields added in SP
+                parameters.Add("@City", _supplier.City);
+                parameters.Add("@State", _supplier.State);
+                parameters.Add("@Pincode", _supplier.Pincode);
+                parameters.Add("@Phone1", _supplier.Phone1);
+                parameters.Add("@Phone2", _supplier.Phone2);
+                parameters.Add("@Email", _supplier.Email);
+                parameters.Add("@ContactPersonName", _supplier.ContactPersonName);
+                parameters.Add("@ContactPersonNumber", _supplier.ContactPersonNumber);
+
                 parameters.Add("@UserID", tokenClaims.UserId);
 
                 var data = _dbcontext.Query("SP_SupplierMaster", parameters, commandType: CommandType.StoredProcedure);
@@ -925,17 +1005,16 @@ namespace Fluxion_Lab.Controllers.Masters
                 _response.data = data;
 
                 return Ok(_response);
-
             }
             catch (Exception ex)
             {
                 _response.isSucess = false;
                 _response.message = ex.Message;
-
                 return StatusCode(500, _response);
             }
         }
         #endregion
+
 
         #region Supplier Master GET
         [HttpGet("getSupplierMaster")]
@@ -1020,6 +1099,47 @@ namespace Fluxion_Lab.Controllers.Masters
                 _response.isSucess = false;
                 _response.message = ex.Message;
 
+                return StatusCode(500, _response);
+            }
+        }
+        #endregion
+
+        #region Supplier Master Activate/Deactivate
+        [HttpPost("toggleSupplierStatus")]
+        public IActionResult ToggleSupplierStatus([FromHeader] long supplierID, [FromHeader] bool isActive)
+        {
+            try
+            {
+                // Validate Authorization header
+                if (!Request.Headers.ContainsKey("Authorization"))
+                    return Unauthorized(new { isSucess = false, message = "Authorization header missing" });
+
+                string token = Request.Headers["Authorization"].ToString();
+                if (string.IsNullOrWhiteSpace(token) || token.Length <= 7)
+                    return Unauthorized(new { isSucess = false, message = "Invalid authorization token" });
+
+                token = token.Substring(7);
+                var tokenClaims = Fluxion_Handler.GetJWTTokenClaims(token, _key._jwtKey, true);
+
+                var parameters = new DynamicParameters();
+                parameters.Add("@Flag", 106);
+                parameters.Add("@ClientID", tokenClaims.ClientId);
+                parameters.Add("@SuplierID", supplierID);
+                parameters.Add("@IsActive", isActive);
+                parameters.Add("@UserID", tokenClaims.UserId);
+
+                var data = _dbcontext.Query("SP_SupplierMaster", parameters, commandType: CommandType.StoredProcedure);
+
+                _response.isSucess = true;
+                _response.message = "Supplier status updated successfully.";
+                _response.data = data;
+
+                return Ok(_response);
+            }
+            catch (Exception ex)
+            {
+                _response.isSucess = false;
+                _response.message = ex.Message;
                 return StatusCode(500, _response);
             }
         }
@@ -2901,6 +3021,243 @@ namespace Fluxion_Lab.Controllers.Masters
             }
         }
         #endregion
+
+        /**************** Pharmacy Master ******************/
+
+        #region POST Pharmacy Data
+        [HttpPost("postMasterData")]
+        public IActionResult postMasterData([FromHeader] string? Name, [FromHeader] string? Type)
+        {
+            try
+            {
+                string token = Request.Headers["Authorization"];
+                token = token.Substring(7);
+
+                var tokenClaims = Fluxion_Handler.GetJWTTokenClaims(token, _key._jwtKey, true);
+
+                var parameters = new DynamicParameters();
+                parameters.Add("@Flag", 135);
+                parameters.Add("@ClientID", tokenClaims.ClientId); 
+                parameters.Add("@Type", Type);
+                parameters.Add("@Name", Name); 
+
+                var data = _dbcontext.Query("SP_Masters", parameters, commandType: CommandType.StoredProcedure);
+
+                _response.isSucess = true;
+                _response.message = "Success";
+                _response.data = data;
+
+                return Ok(_response);
+            }
+            catch (Exception ex)
+            {
+                _response.isSucess = false;
+                _response.message = ex.Message;
+                return StatusCode(500, _response);
+            }
+        }
+        #endregion
+
+        #region PUT Pharmacy Data
+        [HttpPost("putMasterData")]
+        public IActionResult putMasterData([FromHeader] int? ID,[FromHeader] string? Name, [FromHeader] bool? isActive)
+        {
+            try
+            {
+                string token = Request.Headers["Authorization"];
+                token = token.Substring(7);
+
+                var tokenClaims = Fluxion_Handler.GetJWTTokenClaims(token, _key._jwtKey, true);
+
+                var parameters = new DynamicParameters();
+                parameters.Add("@Flag", 136);
+                parameters.Add("@ClientID", tokenClaims.ClientId);
+                parameters.Add("@ID", ID);
+                parameters.Add("@Name", Name);
+                parameters.Add("@IsDefault", isActive); 
+
+                var data = _dbcontext.Query("SP_Masters", parameters, commandType: CommandType.StoredProcedure);
+
+                _response.isSucess = true;
+                _response.message = "Success";
+                _response.data = data;
+
+                return Ok(_response);
+            }
+            catch (Exception ex)
+            {
+                _response.isSucess = false;
+                _response.message = ex.Message;
+                return StatusCode(500, _response);
+            }
+        }
+        #endregion
+
+        #region GET Pharmacy Data
+        [HttpGet("getMasterData")]
+        public IActionResult getMasterData()
+        {
+            try
+            {
+                string token = Request.Headers["Authorization"];
+                token = token.Substring(7);
+
+                var tokenClaims = Fluxion_Handler.GetJWTTokenClaims(token, _key._jwtKey, true);
+
+                var parameters = new DynamicParameters();
+                parameters.Add("@Flag", 137);
+                parameters.Add("@ClientID", tokenClaims.ClientId);
+ 
+                var data = _dbcontext.Query("SP_Masters", parameters, commandType: CommandType.StoredProcedure);
+
+                _response.isSucess = true;
+                _response.message = "Success";
+                _response.data = data;
+
+                return Ok(_response);
+            }
+            catch (Exception ex)
+            {
+                _response.isSucess = false;
+                _response.message = ex.Message;
+                return StatusCode(500, _response);
+            }
+        }
+        #endregion
+
+        /**************** Manufacture Master ******************/
+
+        #region POST Manufacture Data
+        [HttpPost("postManufactureData")]
+        public IActionResult postManufactureData([FromBody] ManufactureMaster model)
+        {
+            try
+            {
+                string token = Request.Headers["Authorization"];
+                token = token.Substring(7);
+
+                var tokenClaims = Fluxion_Handler.GetJWTTokenClaims(token, _key._jwtKey, true);
+
+                var parameters = new DynamicParameters();
+                parameters.Add("@Flag", 138);  
+                parameters.Add("@ClientID", tokenClaims.ClientId);
+                parameters.Add("@UserID", tokenClaims.UserId);
+
+                parameters.Add("@JsonData", JsonConvert.SerializeObject(new
+                {
+                    model.Code,
+                    model.Name,
+                    model.ShortName,
+                    model.Address,
+                    model.Place,
+                    model.ContactPerson,
+                    model.Number,
+                    model.IsActive
+                }));
+
+                var data = _dbcontext.Query("SP_Masters", parameters, commandType: CommandType.StoredProcedure);
+
+                _response.isSucess = true;
+                _response.message = "Manufacture saved successfully";
+                _response.data = data;
+
+                return Ok(_response);
+            }
+            catch (Exception ex)
+            {
+                _response.isSucess = false;
+                _response.message = ex.Message;
+                return StatusCode(500, _response);
+            }
+        }
+        #endregion
+
+
+        #region PUT Manufacture Data
+        [HttpPost("putManufactureData")]
+        public IActionResult putManufactureData([FromBody] ManufactureMaster model)
+        {
+            try
+            {
+                string token = Request.Headers["Authorization"];
+                token = token.Substring(7);
+
+                var tokenClaims = Fluxion_Handler.GetJWTTokenClaims(token, _key._jwtKey, true);
+
+                if (model.ID == null)
+                {
+                    _response.isSucess = false;
+                    _response.message = "Manufacture ID is required for update";
+                    return BadRequest(_response);
+                }
+
+                var parameters = new DynamicParameters();
+                parameters.Add("@Flag", 139); // Manufacture PUT
+                parameters.Add("@ClientID", tokenClaims.ClientId);
+                parameters.Add("@UserID", tokenClaims.UserId);
+                parameters.Add("@ID", model.ID);
+
+                parameters.Add("@JsonData", JsonConvert.SerializeObject(new
+                {
+                    model.Code,
+                    model.Name,
+                    model.ShortName,
+                    model.Address,
+                    model.Place,
+                    model.ContactPerson,
+                    model.Number,
+                    model.IsActive
+                }));
+
+                var data = _dbcontext.Query("SP_Masters", parameters, commandType: CommandType.StoredProcedure);
+
+                _response.isSucess = true;
+                _response.message = "Manufacture updated successfully";
+                _response.data = data;
+
+                return Ok(_response);
+            }
+            catch (Exception ex)
+            {
+                _response.isSucess = false;
+                _response.message = ex.Message;
+                return StatusCode(500, _response);
+            }
+        }
+        #endregion
+
+
+        #region GET Manufacture Data
+        [HttpGet("getManufactureData")]
+        public IActionResult getManufactureData()
+        {
+            try
+            {
+                string token = Request.Headers["Authorization"];
+                token = token.Substring(7);
+
+                var tokenClaims = Fluxion_Handler.GetJWTTokenClaims(token, _key._jwtKey, true);
+
+                var parameters = new DynamicParameters();
+                parameters.Add("@Flag", 140); // Manufacture GET
+                parameters.Add("@ClientID", tokenClaims.ClientId); 
+
+                var data = _dbcontext.Query("SP_Masters", parameters, commandType: CommandType.StoredProcedure);
+
+                _response.isSucess = true;
+                _response.message = "Success";
+                _response.data = data;
+
+                return Ok(_response);
+            }
+            catch (Exception ex)
+            {
+                _response.isSucess = false;
+                _response.message = ex.Message;
+                return StatusCode(500, _response);
+            }
+        }
+        #endregion 
 
     }
 
