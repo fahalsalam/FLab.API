@@ -14,12 +14,12 @@
         public string ItemType { get; set; }
         public string? ItemCode { get; set; }
         public decimal? Rate { get; set; } 
-        public string? Chemical { get; set; }
+        public int? Chemical { get; set; }
         public string? Section { get; set; }
         public string? Schedule { get; set; }
         public string? Packing_Size { get; set; }
         public decimal? MRP { get; set; }
-        public string? Supplier { get; set; }
+        public int? Supplier { get; set; }
         public string? Shelf { get; set; }
         public string? HSNCode { get; set; }
         public string? Barcode { get; set; } 

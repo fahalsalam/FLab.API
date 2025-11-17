@@ -45,6 +45,7 @@ namespace Fluxion_Lab.Models.Masters.GeneralSettings
         public string? designation2 { get; set; }
         public string? sign_url2 { get; set; } 
         public string? ReportLeft_margin { get; set; }
-        public string? ReportRight_margin { get; set; } 
+        public string? ReportRight_margin { get; set; }
+        public string? PharmacySettings { get; set; } 
     }
 }

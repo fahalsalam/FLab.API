@@ -9,6 +9,7 @@
             public string? InvoiceDate { get; set; }
             public string? PurchaseRefNo { get; set; }
             public string? PurchaseDate { get; set; }
+            public string? DueDate { get; set; }
             public decimal? Total { get; set; }
             public decimal? TaxAmount { get; set; }
             public decimal? DiscountAmount { get; set; }
@@ -49,8 +50,9 @@
             public string BatchCode { get; set; }
             public string PurchaseDate { get; set; }
             public DateTime ExpiryDate { get; set; }
-            public decimal Quantity { get; set; }
-     
+            public decimal Quantity { get; set; } 
+            public decimal? SalesPrice { get; set; }
+            public decimal? PurchasePrice { get; set; } 
         }
 
         public class PurchaseData
