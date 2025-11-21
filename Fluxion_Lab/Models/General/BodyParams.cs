@@ -78,7 +78,8 @@
             public string? opBillPrinter { get; set; }
             public string? opBillCardPrinter { get; set; }
             public string? opRecieptPrinter { get; set; }
-            public string? outsourceRecieptPrinter { get; set; } 
+            public string? outsourceRecieptPrinter { get; set; }
+            public string? pharmacyBillPriinter { get; set; } 
         }
 
         public class ResultEntryParams

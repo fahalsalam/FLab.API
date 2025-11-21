@@ -754,7 +754,8 @@ namespace Fluxion_Lab.Controllers.Masters
 
         #region Get Item Master 
         [HttpGet("getItemMaster")]
-        public IActionResult GetItemMaster([FromHeader] int PageNo, [FromHeader] int PageSize, [FromHeader] string? FilterText)
+        public IActionResult GetItemMaster([FromHeader] int PageNo, [FromHeader] int PageSize
+            ,[FromHeader] string? FilterText, [FromHeader] string? FilterColumn, [FromHeader] string? FilterValue)
         {
             try
             {
@@ -768,6 +769,9 @@ namespace Fluxion_Lab.Controllers.Masters
                 parameters.Add("@ClientID", tokenClaims.ClientId);
                 parameters.Add("@PageNo", PageNo);
                 parameters.Add("@PageSize", PageSize);
+                parameters.Add("@FilterColumn", FilterColumn);
+                parameters.Add("@FilterValue", FilterValue);
+
                 parameters.Add("@FilterText", string.IsNullOrEmpty(FilterText) ? "" : FilterText);
 
                 var data = _dbcontext.QueryMultiple("SP_ItemMaster", parameters, commandType: CommandType.StoredProcedure);
@@ -1938,7 +1942,7 @@ namespace Fluxion_Lab.Controllers.Masters
                 parameters.Add("@OpBillCardPrinter", _dv.opBillCardPrinter);
                 parameters.Add("@OpRecieptPrinter", _dv.opRecieptPrinter);
                 parameters.Add("@outsourceRecieptPrinter", _dv.outsourceRecieptPrinter);
-
+                parameters.Add("@pharmacyBillPriinter", _dv.pharmacyBillPriinter); 
 
                 var data = _dbcontext.Query("SP_Masters", parameters, commandType: CommandType.StoredProcedure);
 

@@ -41,7 +41,8 @@
             public string TaxCode { get; set; }
             public decimal TaxAmount { get; set; }
             public decimal NetTotal { get; set; }
-        
+            public string? HscCode { get; set; } 
+
         }
 
         public class PurchaseBatch

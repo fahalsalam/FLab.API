@@ -84,6 +84,9 @@
             public decimal Onhand { get; set; }
             public decimal SalesPrice { get; set; }
             public decimal PurchasePrice { get; set; }
+            public string? SupplierName { get; set; }
+            public int? Supplier { get; set; } 
+            public string? PurchaseRefNo { get; set; } 
         }
 
         public class SalesInvoice

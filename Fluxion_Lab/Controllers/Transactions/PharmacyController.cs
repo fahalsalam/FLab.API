@@ -73,6 +73,86 @@ namespace Fluxion_Lab.Controllers.Transactions
         }
         #endregion
 
+        #region GetDraftlist
+        [HttpGet("getDraftlist")]
+        public IActionResult GetDraftlist()
+        {
+            try
+            {
+                string token = Request.Headers["Authorization"];
+                token = token.Substring(7);
+
+                var tokenClaims = Fluxion_Handler.GetJWTTokenClaims(token, _key._jwtKey, true);
+
+                var parameters = new DynamicParameters();
+                parameters.Add("@Flag", 101);
+                parameters.Add("@ClientID", tokenClaims.ClientId, DbType.Int64);
+
+                using (var multi = _dbcontext.QueryMultiple("SP_PurchaseReturnDarft", parameters, commandType: CommandType.StoredProcedure))
+                {
+                    var headers = multi.Read<dynamic>().ToList();
+                    var details = multi.Read<dynamic>().ToList();
+
+                    _response.isSucess = true;
+                    _response.message = "Success";
+                    _response.data = new { Headers = headers, Details = details };
+
+                    return Ok(_response);
+                }
+            }
+            catch (Exception ex)
+            {
+                _response.isSucess = false;
+                _response.message = ex.Message;
+                return StatusCode(500, _response);
+            }
+        }
+        #endregion
+
+        #region PostPurchaseReturnDraft
+        [HttpPost("postPurchaseReturnDraft")]
+        public IActionResult PostPurchaseReturnDraft([FromHeader] int? sequence, [FromHeader] long? invoiceNo, [FromBody] object purchaseReturnDraft)
+        {
+            try
+            {
+                string token = Request.Headers["Authorization"];
+                token = token.Substring(7);
+
+                var tokenClaims = Fluxion_Handler.GetJWTTokenClaims(token, _key._jwtKey, true);
+
+                var parameters = new DynamicParameters();
+                parameters.Add("@Flag", 100);
+                parameters.Add("@ClientID", tokenClaims.ClientId, DbType.Int64);
+                parameters.Add("@Sequece", sequence);
+                parameters.Add("@InvoiceNo", invoiceNo);
+                parameters.Add("@JsonData", JsonConvert.SerializeObject(purchaseReturnDraft), DbType.String);
+                parameters.Add("@UserID", tokenClaims.UserId, DbType.Int32);
+
+                var result = _dbcontext.QueryFirstOrDefault<dynamic>("SP_PurchaseReturnDarft", parameters, commandType: CommandType.StoredProcedure);
+
+                if (result != null)
+                {
+                    _response.isSucess = true;
+                    _response.message = "Purchase return draft saved successfully";
+                    _response.data = result;
+                }
+                else
+                {
+                    _response.isSucess = false;
+                    _response.message = "Failed to save purchase return draft";
+                }
+
+                return Ok(_response);
+            }
+            catch (Exception ex)
+            {
+                _response.isSucess = false;
+                _response.message = ex.Message;
+                return StatusCode(500, _response);
+            }
+        }
+        #endregion
+
         #region GetOpeningStockList
         [HttpGet("getOpeningStockList")]
         public IActionResult GetOpeningStockList([FromHeader] string FromDate, [FromHeader] string ToDate)
@@ -543,7 +623,7 @@ namespace Fluxion_Lab.Controllers.Transactions
         }
         #endregion
 
-        #region PostSalesInvoice
+        #region PostSalesReturnInvoice
         [HttpPost("postSalesReturn")]
         public IActionResult PostSalesReturn([FromHeader] int? sequence, [FromHeader] long? invoiceNo, [FromHeader] int? editNo
             , [FromHeader] string? docStatus, [FromBody] Pharmacy.SalesInvoice salesInvoice)
@@ -589,6 +669,5 @@ namespace Fluxion_Lab.Controllers.Transactions
             }
         }
         #endregion
-
     }
 }
