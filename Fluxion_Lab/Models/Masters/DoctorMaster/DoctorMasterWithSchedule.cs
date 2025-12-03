@@ -30,6 +30,7 @@ namespace Fluxion_Lab.Models.Masters.DoctorMaster
         public int? ValidityDays { get; set; }
         public decimal? CutsAmount { get; set; }
         public decimal? Commission { get; set; }
+        public decimal? Discount { get; set; } 
         public List<DoctorWeeklySchedule> WeeklySchedule { get; set; }
     }
 
@@ -51,6 +52,8 @@ namespace Fluxion_Lab.Models.Masters.DoctorMaster
         public int? ValidityDays { get; set; }
         public decimal? CutsAmount { get; set; }
         public decimal? Commission { get; set; }
+        public decimal? Discount { get; set; }
+
         public List<DoctorWeeklySchedule> WeeklySchedule { get; set; }
         public List<AppointmentRescheduleHistoryDto> RescheduleHistory { get; set; } = new List<AppointmentRescheduleHistoryDto>();
     }

@@ -140,6 +140,23 @@ namespace Fluxion_Lab.Classes.DependencyInjection
             //services.AddHostedService<DataSyncBackgroundService>();
             services.AddHostedService<DbBackup>();
 
+
+            // Sync config provider (reads from mtbl_ClientMaster if available)
+            services.AddScoped<Services.Sync.Interfaces.ISyncConfigProvider, Services.Sync.Implementations.DbSyncConfigProvider>();
+
+            // Cloud logger for sync operations (writes to local text file) - create using configured path later
+            // We register the file logger as singleton with a temporary path; DataSyncHostedService will reconfigure if DB config exists
+            var logPath = configuration["Sync:LogPath"] ?? Path.Combine(AppContext.BaseDirectory, "SyncLogs");
+            services.AddSingleton<Services.Sync.Implementations.CloudLoggerFile>(_ => new Services.Sync.Implementations.CloudLoggerFile(logPath));
+            services.AddSingleton<Services.Sync.Interfaces.ICloudLogger>(sp => sp.GetRequiredService<Services.Sync.Implementations.CloudLoggerFile>());
+
+            // Register IDataSyncService implementation and HttpClient for sync operations
+            services.AddScoped<Services.Sync.Interfaces.IDataSyncService, Services.Sync.Implementations.DataSyncServiceImplementation>();
+            services.AddHttpClient();
+
+            // Hosted service that triggers the sync implementation on a timer
+            services.AddHostedService<Services.Sync.DataSyncHostedService>();
+
             return services;
         }
 

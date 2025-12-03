@@ -161,6 +161,14 @@ if (mode == "SaaS")
     });
 }
 
+// Register sync services for OnPrem mode as well
+if (builder.Configuration["SaaSOptions:Mode"] == "OnPrem")
+{
+    // HttpClient used by DataSync service implementation
+    builder.Services.AddHttpClient();
+    builder.Services.AddScoped<Fluxion_Lab.Services.Sync.Interfaces.IDataSyncService, Fluxion_Lab.Services.Sync.Implementations.DataSyncServiceImplementation>();
+}
+
 
 //
 // 6) CORS, MVC

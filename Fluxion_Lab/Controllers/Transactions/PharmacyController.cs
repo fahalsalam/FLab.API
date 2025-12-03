@@ -1,15 +1,16 @@
-﻿using Fluxion_Lab.Models.General;
+﻿using Dapper;
+using Fluxion_Lab.Classes.DBOperations;
+using Fluxion_Lab.Models.General;
+using Fluxion_Lab.Models.Pharmacy;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using System.Data;
 using System.Data.SqlClient;
-using Dapper;
-using Newtonsoft.Json;
-using static Fluxion_Lab.Controllers.Authentication.AuthenticationController;
-using Fluxion_Lab.Classes.DBOperations;
-using Fluxion_Lab.Models.Pharmacy;
 using System.Linq;
+using static Fluxion_Lab.Controllers.Authentication.AuthenticationController;
 
 namespace Fluxion_Lab.Controllers.Transactions
 {
@@ -111,8 +112,9 @@ namespace Fluxion_Lab.Controllers.Transactions
 
         #region PostPurchaseReturnDraft
         [HttpPost("postPurchaseReturnDraft")]
-        public IActionResult PostPurchaseReturnDraft([FromHeader] int? sequence, [FromHeader] long? invoiceNo, [FromBody] object purchaseReturnDraft)
-        {
+        public IActionResult PostPurchaseReturnDraft([FromHeader] int? sequence, [FromHeader] long? invoiceNo
+            ,[FromBody] List<Fluxion_Lab.Models.Transactions.Purchase.PurchaseReturnDraftItem> purchaseReturnDraft)
+         {
             try
             {
                 string token = Request.Headers["Authorization"];
@@ -125,6 +127,13 @@ namespace Fluxion_Lab.Controllers.Transactions
                 parameters.Add("@ClientID", tokenClaims.ClientId, DbType.Int64);
                 parameters.Add("@Sequece", sequence);
                 parameters.Add("@InvoiceNo", invoiceNo);
+                if (purchaseReturnDraft == null)
+                {
+                    _response.isSucess = false;
+                    _response.message = "Request body is empty or invalid JSON for PurchaseReturnDraftItem list.";
+                    return BadRequest(_response);
+                }
+
                 parameters.Add("@JsonData", JsonConvert.SerializeObject(purchaseReturnDraft), DbType.String);
                 parameters.Add("@UserID", tokenClaims.UserId, DbType.Int32);
 
@@ -669,5 +678,48 @@ namespace Fluxion_Lab.Controllers.Transactions
             }
         }
         #endregion
-    }
+
+        #region CancelSalesEntry
+        [HttpPost("cancelSalesEntry")]
+        public IActionResult CancelSalesEntry([FromHeader] int Sequence, [FromHeader] long InvoiceNo, [FromHeader] int EditNo)
+        {
+            try
+            {
+                string token = Request.Headers["Authorization"];
+                token = token.Substring(7);
+
+                var tokenClaims = Fluxion_Handler.GetJWTTokenClaims(token, _key._jwtKey, true);
+
+                var parameters = new DynamicParameters();
+                parameters.Add("@ClientID", tokenClaims.ClientId);
+                parameters.Add("@InvoiceNo", InvoiceNo);
+                parameters.Add("@Sequence", Sequence);
+                parameters.Add("@EditNo", EditNo);
+                parameters.Add("@UserID", tokenClaims.UserId);
+
+                var result = _dbcontext.QueryFirstOrDefault<dynamic>("SP_SalesEntryCancel", parameters, commandType: CommandType.StoredProcedure);
+
+                if (result != null)
+                {
+                    _response.isSucess = true;
+                    _response.message = result.TransMessage?.ToString() ?? "Sales entry cancelled successfully";
+                    _response.data = result;
+                }
+                else
+                {
+                    _response.isSucess = false;
+                    _response.message = "Failed to cancel sales entry";
+                }
+
+                return Ok(_response);
+            }
+            catch (Exception ex)
+            {
+                _response.isSucess = false;
+                _response.message = ex.Message;
+                return StatusCode(500, _response);
+            }
+        }
+        #endregion
+    }  
 }

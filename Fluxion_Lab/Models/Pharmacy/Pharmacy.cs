@@ -133,5 +133,20 @@
             public decimal? GP_Amount { get; set; }
             public decimal? Onhand { get; set; }
         }
+
+        // Sales return item model used by reports and return APIs
+        // Only contains the columns requested by the report query
+        public class SalesReturnItem
+        {
+            public long? ItemNo { get; set; }
+            public string? ItemName { get; set; }
+            public decimal? Qty { get; set; }
+            public decimal? SalesPrice { get; set; }
+            public decimal? MRP { get; set; }
+            public decimal? TaxAmount { get; set; }
+            public string? TaxCode { get; set; }
+            public decimal? NetTotal { get; set; }
+            public string? BatchCode { get; set; }
+        }
     }
 }

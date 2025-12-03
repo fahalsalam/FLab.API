@@ -725,5 +725,42 @@ namespace Fluxion_Lab.Controllers.Reports
             }
         }
         #endregion
+
+        #region Reception Transaction Summary 
+        [HttpGet("ReceptionSummarybyGraph")]
+        public IActionResult ReceptionSummarybyGraph([FromHeader] string graphType)
+        {
+            try
+            {
+                string token = Request.Headers["Authorization"];
+                token = token.Substring(7);
+
+                var tokenClaims = Fluxion_Handler.GetJWTTokenClaims(token, _key._jwtKey, true);
+                var parameters = new DynamicParameters();
+
+                parameters.Add("@Flag", 120);
+                parameters.Add("@ClientID", tokenClaims.ClientId);
+                parameters.Add("@GraphType", graphType);
+
+                var data = _dbcontext.Query("SP_Reports", parameters, commandType: CommandType.StoredProcedure);
+
+                var Response = new
+                {
+                    isSucess = true,
+                    message = "Success",
+                    data = data
+                };
+
+                return Ok(Response);
+            }
+            catch (Exception ex)
+            {
+                _response.isSucess = false;
+                _response.message = ex.Message;
+                return StatusCode(500, _response);
+            }
+        }
+        #endregion
+
     }
 }

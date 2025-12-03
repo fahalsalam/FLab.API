@@ -560,6 +560,8 @@ namespace Fluxion_Lab.Controllers.MobileApp
             public string? LabName { get; set; }
             public decimal? BalanceDue { get; set; }
             public decimal? DiscAmount { get; set; }
+            public string? DocStatus { get; set; }
+
         }
 
         public class TestEntryLineDto

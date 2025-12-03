@@ -1346,7 +1346,8 @@ namespace Fluxion_Lab.Controllers.Masters
                     RenewConsultFee = doc.renew_consult_fee != null ? (decimal?)doc.renew_consult_fee : null,
                     ValidityDays = doc.validity_days != null ? (int?)doc.validity_days : null,
                     CutsAmount = doc.cuts_amount != null ? (decimal?)doc.cuts_amount : null,
-                    Commission = doc.commission != null ? (decimal?)doc.commission : null
+                    Commission = doc.commission != null ? (decimal?)doc.commission : null,
+                    Discount = doc.Discount != null ? (decimal?)doc.Discount : null 
                 }).ToList();
 
                 var scheduleList = scheduleListRaw.Select(s => new
@@ -1396,6 +1397,7 @@ namespace Fluxion_Lab.Controllers.Masters
                         ValidityDays = doc.ValidityDays,
                         CutsAmount = doc.CutsAmount,
                         Commission = doc.Commission,
+                        Discount = doc.Discount,
                         WeeklySchedule = schedules,
                         RescheduleHistory = doctorRescheduleHistory
                     };
